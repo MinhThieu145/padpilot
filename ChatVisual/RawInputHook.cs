@@ -516,34 +516,6 @@ namespace ChatVisual
                 return;
             }
 
-
-
-            // Then we need to register that device
-            //bool isRegisterSuccessful = RegisterDevice();
-
-            //if (isRegisterSuccessful)
-            //{
-            //    Console.WriteLine("Register device succesfully");
-            //}
-            //else
-            //{
-            //    Console.WriteLine("Register device NOT succesful");
-            //    int errorCode = Marshal.GetLastWin32Error();
-            //    Console.WriteLine("Register Success " + errorCode);
-
-            //    return;
-            //}
-
-
-
-            // then now we need the HwndSource (this is so confusing so pls look this up)
-            // but basically this capture all the message sent to THIS WINDOW (and not other application)
-            // Also if you wondering if this hook receive the message first or our LowLevel receive first -> then the low level receive first
-            // The only reason the message for RawInput come first is because Raw Input process the message SO FAST it comes out first
-            // _source = HwndSource.FromHwnd(_hwnd);
-            // _sourceHook = HandleRawInput;
-            // _source.AddHook(_sourceHook);
-
         }
 
 
