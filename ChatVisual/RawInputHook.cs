@@ -487,28 +487,6 @@ namespace ChatVisual
             }
 
 
-            //RawInputDeviceList[] deviceList = GetDeviceList();
-
-            //if (deviceList == null)
-            //{
-            //    Console.WriteLine("[RawInputHook] Failed to retrieve device list. Aborting.");
-            //    Shutdown();
-            //    return;
-            //}
-
-
-            //// then we scan through the device list and find it
-            //bool isFoundTarget = FindTargetDevice(deviceList);
-            //if (isFoundTarget)
-            //{
-            //    Console.WriteLine("Found target device with handle: " + _targetDeviceHandle);
-            //}
-            //else
-            //{
-            //    Console.WriteLine("Target device not found");
-            //    return;
-            //}
-
         }
 
 
