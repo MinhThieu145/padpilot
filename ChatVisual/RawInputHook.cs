@@ -464,13 +464,6 @@ namespace ChatVisual
 
 
         /// <summary>
-        /// WPF interop source and its hook delegate. Kept as fields to prevent GC.
-        /// </summary>
-        private HwndSource _source;
-        private HwndSourceHook _sourceHook;
-
-
-        /// <summary>
         /// Debug counter — tracks how many WM_INPUT messages have arrived.
         /// </summary>
         private int countingEvent = 0;
