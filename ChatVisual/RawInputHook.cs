@@ -494,62 +494,59 @@ namespace ChatVisual
             }
 
 
-            (RawInputDeviceList[] deviceList, uint result) = ListDevice();
+            RawInputDeviceList[] deviceList = GetDeviceList();
 
-            if (result == uint.MaxValue)  // this is actually the uint -1 in the doc
+            if (deviceList == null)
             {
-                Console.WriteLine("Failed to get device list");
-                int errorCode = Marshal.GetLastWin32Error();
-                string errorMessage = new Win32Exception(errorCode).Message;
-                Console.WriteLine($"Error {errorCode}: {errorMessage}");
-
+                Console.WriteLine("[RawInputHook] Failed to retrieve device list. Aborting.");
+                Shutdown();
                 return;
+            }
+
+
+            // then we scan through the device list and find it
+            bool isFoundTarget = FindTargetDevice(deviceList);
+            if (isFoundTarget)
+            {
+                Console.WriteLine("Found target device with handle: " + _targetDeviceHandle);
             }
             else
             {
-                // then we scan through the device list and find it
-                bool isFoundTarget = FindTargetDevice(deviceList);
-                if (isFoundTarget)
-                {
-                    Console.WriteLine("Found target device with handle: " + _targetDeviceHandle);
-                }
-                else
-                {
-                    Console.WriteLine("Target device not found");
-                    return;
-                }
-
-
-
-                // Then we need to register that device
-                bool isRegisterSuccessful = RegisterDevice();
-
-                if (isRegisterSuccessful)
-                {
-                    Console.WriteLine("Register device succesfully");
-                }
-                else
-                {
-                    Console.WriteLine("Register device NOT succesful");
-                    int errorCode = Marshal.GetLastWin32Error();
-                    Console.WriteLine("Register Success " + errorCode);
-
-                    return;
-                }
-
-
-
-                // then now we need the HwndSource (this is so confusing so pls look this up)
-                // but basically this capture all the message sent to THIS WINDOW (and not other application)
-                // Also if you wondering if this hook receive the message first or our LowLevel receive first -> then the low level receive first
-                // The only reason the message for RawInput come first is because Raw Input process the message SO FAST it comes out first
-                _source = HwndSource.FromHwnd(_hwnd);
-                _sourceHook = HandleRawInput;
-                _source.AddHook(_sourceHook);
-
+                Console.WriteLine("Target device not found");
+                return;
             }
 
+
+
+            // Then we need to register that device
+            bool isRegisterSuccessful = RegisterDevice();
+
+            if (isRegisterSuccessful)
+            {
+                Console.WriteLine("Register device succesfully");
+            }
+            else
+            {
+                Console.WriteLine("Register device NOT succesful");
+                int errorCode = Marshal.GetLastWin32Error();
+                Console.WriteLine("Register Success " + errorCode);
+
+                return;
+            }
+
+
+
+            // then now we need the HwndSource (this is so confusing so pls look this up)
+            // but basically this capture all the message sent to THIS WINDOW (and not other application)
+            // Also if you wondering if this hook receive the message first or our LowLevel receive first -> then the low level receive first
+            // The only reason the message for RawInput come first is because Raw Input process the message SO FAST it comes out first
+            _source = HwndSource.FromHwnd(_hwnd);
+            _sourceHook = HandleRawInput;
+            _source.AddHook(_sourceHook);
+
         }
+
+
 
 
         // =====================================================================
@@ -592,6 +589,42 @@ namespace ChatVisual
 
 
         }
+
+        /// <summary>
+        /// Enumerates all raw input devices currently connected to the system.
+        /// Uses two calls: first to get the count, then to get the actual list.
+        /// Returns null on failure.
+        /// </summary>
+        private RawInputDeviceList[] GetDeviceList()
+        {
+            uint dwSize = (uint)Marshal.SizeOf<RawInputDeviceList>();
+            uint deviceCount = 0;
+
+            // we first get the number of devices
+            GetRawInputDeviceList(IntPtr.Zero, ref deviceCount, dwSize);
+
+            if (deviceCount == 0)
+            {
+                Console.WriteLine("[RawInputHook] No raw input devices found.");
+                return null;
+            }
+
+            RawInputDeviceList[] deviceList = new RawInputDeviceList[(int)deviceCount];
+
+            // Second call: fills the actual device list array.
+            uint result = GetRawInputDeviceList(deviceList, ref deviceCount, dwSize);
+
+            if (result == uint.MaxValue) // uint.MaxValue = (uint)-1 = failure
+            {
+                LogWin32Error("GetRawInputDeviceList");
+                return null;
+            }
+
+            Console.WriteLine($"[RawInputHook] Found {deviceCount} raw input device(s).");
+            return deviceList;
+
+        }
+
 
 
 
@@ -647,27 +680,6 @@ namespace ChatVisual
             }
         }
 
-
-
-        // LIST DEVICES METHOD
-        // this method is to list all the device that we have.
-        // We will call this method in the constructor to see all the device we have and get the handle of the mouse that we want to listen to
-
-        private (RawInputDeviceList[] deviceList, uint result) ListDevice()
-        {
-            uint dwSize = (uint)Marshal.SizeOf<RawInputDeviceList>();
-            uint deviceCount = 0;
-            // we first get the number of devices
-            GetRawInputDeviceList(IntPtr.Zero, ref deviceCount, dwSize);
-
-            RawInputDeviceList[] deviceList = new RawInputDeviceList[(int)deviceCount];
-
-            // step 2: then we simply need to pass the device count to the 2nd call
-            uint result = GetRawInputDeviceList(deviceList, ref deviceCount, dwSize);
-
-            return (deviceList, result);
-
-        }
 
 
         // REGISTER DEVICES METHOD
