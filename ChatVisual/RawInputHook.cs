@@ -587,6 +587,9 @@ namespace ChatVisual
             return true;
         }
 
+        // =====================================================================
+        // DEVICE DISCOVERY
+        // =====================================================================
 
         /// <summary>
         /// Enumerates all raw input devices currently connected to the system.
@@ -623,7 +626,12 @@ namespace ChatVisual
 
         }
 
-        
+
+        /// <summary>
+        /// Scans the device list for our macro keypad by matching its device path.
+        /// The path contains vendor ID (VID_1189) and interface ID (MI_00).
+        /// Sets _targetDeviceHandle if found. Returns true on success.
+        /// </summary>
         private bool FindTargetDevice(RawInputDeviceList[] deviceList)
         {
             // let see all the device
@@ -659,8 +667,6 @@ namespace ChatVisual
 
                 Console.WriteLine(Marshal.PtrToStringAnsi(buffer)); // conver the buffer to string to read it
 
-                // this mean we set our target to the Mouse Dell
-                // VID_413C is the vendor ID for Dell, so this is to make sure we only listen to the mouse from Dell
                 string bufferString = Marshal.PtrToStringAnsi(buffer);
                 if (bufferString.Contains("VID_1189") && bufferString.Contains("MI_00")) // this is innfo of our macro
                 {
@@ -681,9 +687,10 @@ namespace ChatVisual
         }
 
 
-        // REGISTER DEVICES METHOD
-        // This function register our device with window
-        // basically told window: "hey I want to listen to all the input of the device to be here
+        /// <summary>
+        /// Retrieves the device path string for a given raw input device handle.
+        /// Returns null on failure.
+        /// </summary>
         private bool RegisterDevice()
         {
             // we first need to make sure we get the size of the structure first
@@ -691,18 +698,11 @@ namespace ChatVisual
             uint uiNumDevices = 1;
             RawInputDevice[] rawInputDevices = new RawInputDevice[(int)uiNumDevices];
 
-
-
-
-
             // we need to populate the struct for ourself. Since the uiNumDevices = 1 (only 1 element)
             rawInputDevices[0].usUsagePage = 0x0001; // mouse class driver and mapped driver
             rawInputDevices[0].usUsage = 0x0006; // no idea???
             rawInputDevices[0].dwFlags = RIDEV_INPUTSINK; // get data even when the app is not focused
             rawInputDevices[0].hwndTarget = _hwnd;
-
-
-            Console.WriteLine("Window handle: " + _hwnd);
 
             rawInputDevices[0].hwndTarget = _hwnd;
 
