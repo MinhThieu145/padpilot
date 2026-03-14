@@ -6,18 +6,72 @@ using System.Windows.Interop;
 
 namespace ChatVisual
 {
+
+    /// <summary>
+    /// Intercepts keyboard input from a specific HID macro keypad using two Windows
+    /// mechanisms working in tandem.
+    ///
+    /// ┌─────────────────────────────────────────────────────────────────┐
+    /// │  ARCHITECTURE: WHY TWO HOOKS?                                   │
+    /// │                                                                 │
+    /// │  Raw Input API          → identifies WHICH device sent the key  │
+    /// │                           but CANNOT swallow the event          │
+    /// │                                                                 │
+    /// │  Low-Level Keyboard Hook → CAN swallow events                   │
+    /// │                            but CANNOT identify the device       │
+    /// │                                                                 │
+    /// │  Together: Raw Input fires first, identifies the source.        │
+    /// │  The hook fires ~1ms later and decides whether to block it.     │
+    /// └─────────────────────────────────────────────────────────────────┘
+    ///
+    /// FLOW PER KEYPRESS
+    ///   1. Physical key pressed on macro keypad (F1–F9)
+    ///   2. HandleRawInput()         → WM_INPUT arrives via HwndSource hook
+    ///                                 Checks if key came from _targetDeviceHandle
+    ///   3. LowLevelKeyboardFilter() → fires for every key system-wide
+    ///                                 Swallows F1–F9 if the event is NOT injected
+    ///   4. If key came from a regular keyboard:
+    ///                                 InjectKeyboardEvent() re-fires it so the
+    ///                                 rest of the system still sees it normally
+    ///
+    /// KNOWN LIMITATIONS
+    ///   - Device matching uses VID/MI string in device path. If the macro keypad
+    ///     is unplugged and reconnected, _targetDeviceHandle may change.
+    ///   - Injected event detection (LLKHF_INJECTED flag 0x10) is not 100% accurate.
+    ///     Software like the on-screen keyboard also injects events.
+    /// </summary>
+
+
     internal class RawInputHook
     {
 
-        // First call version - accepts IntPtr for null
+        // =====================================================================
+        // P/INVOKE: RAW INPUT API
+        // Used to enumerate connected devices, register to receive WM_INPUT
+        // messages, and read the raw data from those messages.
+        // Docs: https://learn.microsoft.com/en-us/windows/win32/inputdev/raw-input
+        // =====================================================================
+
+
+        /// <summary>
+        /// This is call the "two-call pattern" -> basically we need to pass in the size of sth
+        /// But we can only get the size of that thing by calling it first with a null value
+        /// GetRawInputDeviceList requires 2 separated method declaration because the pRawInputDeviceList needs to be IntPtr for the first call (to get the count) 
+        /// and an array for the second call (to get the actual device list). We can't just use IntPtr for both call because we need to pass in the pre-allocated array for the second call, and we can't do that with IntPtr.
+        /// <para>
+        /// First call: pass IntPtr.Zero to retrieve only the device COUNT into puiNumDevices.
+        /// </para>
+        /// </summary>
         [DllImport("User32.dll", SetLastError = true)]
         public static extern uint GetRawInputDeviceList(
-            IntPtr pRawInputDeviceList, // becuase we need to pass null to this to get the number of device (field 2)
+            IntPtr pRawInputDeviceList, // because we need to pass null to this to get the number of device (field 2)
             ref uint puiNumDevices,
             uint cbSize
         );
 
-        // Second call version - accepts real array
+        /// <summary>
+        /// Second call: pass a pre-allocated array to fill in the actual device list.
+        /// </summary>
         [DllImport("User32.dll", SetLastError = true)]
         public static extern uint GetRawInputDeviceList(
             [Out] RawInputDeviceList[] pRawInputDeviceList, // now this is the array that we can get the actual device list
@@ -25,7 +79,11 @@ namespace ChatVisual
             uint cbSize
         );
 
-        // get the device info
+        /// <summary>
+        /// Retrieves information about a raw input device (e.g. its name/path).
+        /// Call twice: first with IntPtr.Zero to get the required buffer size,
+        /// then again with an allocated buffer to get the actual data.
+        /// </summary>
         [DllImport("User32.dll", SetLastError = true)]
         public static extern uint GetRawInputDeviceInfo(
             IntPtr hDevice,
@@ -34,6 +92,11 @@ namespace ChatVisual
             ref uint pcbSize
         );
 
+
+        /// <summary>
+        /// Registers this window to receive WM_INPUT messages from specific device types.
+        /// Must be called before any raw input data will arrive.
+        /// </summary>
         [DllImport("User32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool RegisterRawInputDevices(
@@ -42,6 +105,12 @@ namespace ChatVisual
             uint cbSize
         );
 
+
+        /// <summary>
+        /// Reads the raw input data from a WM_INPUT message.
+        /// Call twice: first with IntPtr.Zero to get the required buffer size,
+        /// then again with an allocated buffer to get the actual data.
+        /// </summary>
         [DllImport("User32.dll", SetLastError = true)]
         public static extern uint GetRawInputData(
             IntPtr hRawInput,
@@ -52,54 +121,87 @@ namespace ChatVisual
         );
 
 
-        // set up the hook to intercept event from window (keystroke, mouse click, etc)
-        // lpfn is a pointer to hook procedure, which is a callback function that processes the events.
-        // so it's a delegate
+        // =====================================================================
+        // P/INVOKE: LOW-LEVEL KEYBOARD HOOK
+        // Used to intercept and optionally swallow keystrokes system-wide,
+        // before they reach any application window.
+        // Docs: https://learn.microsoft.com/en-us/windows/win32/winmsg/hooks
+        // =====================================================================
+
+
+        /// <summary>
+        /// Installs a global keyboard hook. idHook=13 means WH_KEYBOARD_LL.
+        /// Returns a handle used to remove the hook later.
+        /// dwThreadId=0 hooks all threads in the system (required for global hooks).
+        /// </summary>
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
 
-        // This is the opposite of SetWindowsHookEx, this is to remove the hook
-        // hhk: handle to the hook (this is the return of the SetWindowsHookEx)
+
+        /// <summary>
+        /// Removes a previously installed hook. Pass the handle returned by SetWindowsHookEx.
+        /// Always call this on shutdown to avoid a leaked hook.
+        /// </summary>
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool UnhookWindowsHookEx(IntPtr hhk);
 
 
-        // Pass the event to the next hook in the chain
-        // this is where we can swallow the event (by not calling this function) or pass it to the next hook (by calling this function)
+        /// <summary>
+        /// Passes a hook event to the next hook in the chain.
+        /// Must be called for any event we are NOT swallowing, otherwise
+        /// we silently break keyboard input for the entire system.
+        /// </summary>
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
 
 
-        // 
+        /// <summary>
+        /// Returns a handle to the current process module.
+        /// Passing null retrieves the handle of the running executable,
+        /// which is what SetWindowsHookEx requires for the hMod parameter
+        /// when installing a global hook.
+        /// </summary>
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr GetModuleHandle(string lpModuleName);
 
 
-        // This is the function to simulate a keystrokes, mouse motions, and button clicks (yeah literally simulate or synthesize it)
+
+        // =====================================================================
+        // P/INVOKE: INPUT INJECTION
+        // Used to re-fire key events that we intercepted from non-macro keyboards.
+        // When a regular keyboard presses F1–F9, we swallow it at the hook level
+        // and re-inject it so the OS still sees it as a normal keypress.
+        // Docs: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput
+        // =====================================================================
+
+
+        /// <summary>
+        /// Synthesizes keystrokes, mouse motions, and button clicks.
+        /// cInputs = number of elements in pInputs array.
+        /// cbSize   = Marshal.SizeOf(tagINPUT) — must match exactly or the call fails silently.
+        /// </summary>
         [DllImport("User32.dll", SetLastError = true)]
         private static extern uint SendInput(
-            uint cInputs, // number of the input in the array below
-            tagINPUT[] pInputs, // the array of the input we want to simulate
-            int cbSize  // the size of the tagINPUT structure (we can get this by Marshal.SizeOf<tagINPUT>()
+            uint cInputs,
+            tagINPUT[] pInputs,
+            int cbSize
         );
 
 
 
 
-        // The STRUCT
-
-        // This is the struct to read the lParam from LowLevelKeyboardProc 
-        [StructLayout(LayoutKind.Sequential)]
-        public struct KBDLLHOOKSTRUCT
-        {
-            public uint vkCode; // the key code represent the sort of event (pls read here: https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes_
-            public uint scanCode; // the hardware scan code for the key
-            public uint flags; // ????
-            public uint time; // the timestamp for this event
-            public UIntPtr dwExtraInfo;
-        }
+        // =====================================================================
+        // STRUCTS: RAW INPUT
+        // These mirror Windows API structs exactly. Layout must not be changed.
+        // Docs: https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-rawinput
+        // =====================================================================
 
 
+        /// <summary>
+        /// Represents one entry in the raw input device list.
+        /// hDevice is the opaque handle used to identify the device later.
+        /// dwType: 0 = mouse, 1 = keyboard, 2 = HID
+        /// </summary>
         [StructLayout(LayoutKind.Sequential)]
         public struct RawInputDeviceList
         {
@@ -107,6 +209,13 @@ namespace ChatVisual
             public uint dwType;
         }
 
+
+        /// <summary>
+        /// Passed to RegisterRawInputDevices to declare which device types we want
+        /// and which window should receive their WM_INPUT messages.
+        /// usUsagePage = 0x0001 → Generic Desktop Controls (HID spec)
+        /// usUsage     = 0x0006 → Keyboard (under page 0x0001)
+        /// </summary>
         [StructLayout(LayoutKind.Sequential)]
         public struct RawInputDevice
         {
@@ -116,9 +225,11 @@ namespace ChatVisual
             public IntPtr hwndTarget;
         }
 
-        // THIS IS THE STRUCT FOR THE GetRawInputData FUNCTION
-        // docs: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getrawinputdata
-
+        /// <summary>
+        /// The header portion of every WM_INPUT message.
+        /// dwType identifies whether the input came from mouse, keyboard, or HID.
+        /// hDevice lets us match the event to our target device handle.
+        /// </summary>
         [StructLayout(LayoutKind.Sequential)]
         public struct RawInputHeader
         {
@@ -128,28 +239,29 @@ namespace ChatVisual
             public IntPtr wParam;
         }
 
-        /*
-          [StructLayout(LayoutKind.Explicit)]
 
-        // This Struct is for the GetRawInputData too
-
-        public struct tagRAWMOUSE
+        /// <summary>
+        /// Keyboard-specific data inside a raw input message.
+        /// VKey    = virtual key code 
+        /// Flags   = RI_KEY_BREAK (0x0001) means key-up; 0 means key-down
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct tagRawKeyBoard
         {
-            [FieldOffset(0)] public ushort usFlags;       // 2 bytes, starts at byte 0
-
-            // UNION starts at byte 4 - these two overlap in memory
-            [FieldOffset(4)] public uint ulButtons;        // 4 bytes, starts at byte 4
-            [FieldOffset(4)] public ushort usButtonFlags;  // 2 bytes, also starts at byte 4
-            [FieldOffset(6)] public ushort usButtonData;   // 2 bytes, starts at byte 6
-
-            [FieldOffset(8)] public uint ulRawButtons;       // 4 bytes
-            [FieldOffset(12)] public int lLastX;              // 4 bytes
-            [FieldOffset(16)] public int lLastY;              // 4 bytes
-            [FieldOffset(20)] public uint ulExtraInformation; // 4 bytes
+            public ushort MakeCode;
+            public ushort Flags;
+            public ushort Reserved;
+            public ushort VKey; // see: https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+            public uint Message;
+            public uint ExtraInformation;
         }
-        */
 
+
+        // These structs exist because RAWINPUT uses a C-style union in memory.
+        // We only use the keyboard variant, but all three must be present so the
+        // union is the correct total size when marshalled.
         // THIS IS for the RAWHID struct, which is part of the UNION for the RawInput
+
         [StructLayout(LayoutKind.Sequential)]
         public struct tagRAWHID
         {
@@ -184,19 +296,12 @@ namespace ChatVisual
             public uint ulExtraInformation;
         }
 
-        // The tagRawKeyboard is part of the UNION for the RawInput
-        [StructLayout(LayoutKind.Sequential)]
-        public struct tagRawKeyBoard
-        {
-            public ushort MakeCode;
-            public ushort Flags;
-            public ushort Reserved;
-            public ushort VKey;
-            public uint Message;
-            public uint ExtraInformation;
-        }
 
-        // Now we build the UNION for the RawInput
+        /// <summary>
+        /// The union that sits after RawInputHeader in memory.
+        /// All three fields start at the same offset (they share memory).
+        /// Read only the field that matches header.dwType.
+        /// </summary>
         [StructLayout(LayoutKind.Explicit)]
         public struct RawInputUnion
         {
@@ -206,7 +311,7 @@ namespace ChatVisual
             [FieldOffset(0)] public tagRAWHID hid;
         }
 
-        // This Struct is for the GetRawInputData too
+
         [StructLayout(LayoutKind.Sequential)]
         public struct RawInput
         {
@@ -216,13 +321,37 @@ namespace ChatVisual
 
 
 
-        // This Struct is for the SendInput function. SendInput function need an array of these
-        // docs: https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input
+        // =====================================================================
+        // STRUCTS: KEYBOARD HOOK
+        // Read from lParam inside the low-level keyboard hook callback.
+        // Docs: https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-kbdllhookstruct
+        // =====================================================================
 
-        // NOW THIS IS NEW:
-        // INSTEAD of doing [FieldOffset(4)] public tagKEYBDINPUT ki; we will implement it similar to C++ (write all the UNION out instead of just pick one)
+        /// <summary>
+        /// Contains details about a low-level keyboard event.
+        /// vkCode = which key was pressed.
+        /// flags  = bit field; bit 4 (0x10) = LLKHF_INJECTED (event was not from hardware).
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode; // the key code represent the sort of event (pls read here: https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes_
+            public uint scanCode; // the hardware scan code for the key
+            public uint flags; // ????
+            public uint time; // the timestamp for this event
+            public UIntPtr dwExtraInfo;
+        }
 
-        // We would need a MouseInput struct (we DON'T NEED THIS FOR NOW. BUT IT'S PART OF THE STRUCT for the UNION)
+
+        // =====================================================================
+        // STRUCTS: INPUT INJECTION (SendInput)
+        // These mirror the INPUT / KEYBDINPUT structs from winuser.h.
+        // Docs: https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input
+        // =====================================================================
+
+
+        // Mouse and hardware input structs are required by the union even though
+        // we only use the keyboard variant. Do not remove them.
         [StructLayout(LayoutKind.Sequential)]
         public struct tagMOUSEINPUT
         {
@@ -234,26 +363,28 @@ namespace ChatVisual
             public UIntPtr dwExtraInfo;
         }
 
-        // This is the struct for the INPUT structure (Right below). This is the one I actually use
-        // The struct contain information for the simulated keyboard event
-        [StructLayout(LayoutKind.Sequential)]
-        public struct tagKEYBDINPUT
-        {
-            public ushort wVk;  // the virtual key code (represent the key we want to simulate)
-            public ushort wScan; // when we don't have the keycode to describe the event then we have this wScan code
-            public uint dwFlags;  // settings for the wSCan
-            public uint time; // the timestamp for this event to happen. If null the system will pick 1 for us
-            public UIntPtr dwExtraInfo; // additional value associated with the keystroke
-        }
-
-
-        // THIS IS FOR THE UNION in the INPUT STRUCT (similar to the tagMOUSEINPUT we don't need this for now but it's part of the UNION)
         [StructLayout(LayoutKind.Sequential)]
         public struct tagHARDWAREINPUT
         {
             public uint uMsg;
             public ushort wParamL;
             public ushort wParamR;
+        }
+
+        /// <summary>
+        /// Keyboard-specific input for SendInput.
+        /// wVk     = virtual key code of the key to simulate.
+        /// dwFlags = 0 for key-down, KEYEVENTF_KEYUP (0x0002) for key-up.
+        /// time    = 0 lets the system assign the timestamp.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct tagKEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan; // when we don't have the keycode to describe the event then we have this wScan code
+            public uint dwFlags;
+            public uint time;
+            public UIntPtr dwExtraInfo; // additional value associated with the keystroke
         }
 
 
@@ -266,9 +397,11 @@ namespace ChatVisual
             [FieldOffset(0)] public tagHARDWAREINPUT hi;
         }
 
-        // Then this is the actual tagINPUT struct for the SendInput function. This is the one we actually use.
-        // This struct contain information for the simulated event (mouse, keyboard, or hardware)
-
+        /// <summary>
+        /// Top-level struct for SendInput.
+        /// type = 0 (mouse), 1 (keyboard), 2 (hardware).
+        /// We always use type = 1 (keyboard).
+        /// </summary>
         [StructLayout(LayoutKind.Sequential)]
         public struct tagINPUT
         {
@@ -277,52 +410,171 @@ namespace ChatVisual
         }
 
 
-        // RANDOM FIELDS
 
-        // this is to handle the Mouse Hook
-        // basically we add this hook to HwndSource
-        // docs: https://learn.microsoft.com/en-us/dotnet/api/system.windows.interop.hwndsource.addhook?view=windowsdesktop-10.0
-        // But basically the hook accept a function look like this: https://learn.microsoft.com/en-us/dotnet/api/system.windows.interop.hwndsourcehook?view=windowsdesktop-10.0 
-        // the delegate you can consider it like a prop (basically all the parameter and return type need to be the same as delegate). You can change the name
+        // =====================================================================
+        // CONSTANTS
+        // =====================================================================
+
+
+        // Windows message sent by Raw Input API when device data is ready.
         private const int WM_INPUT = 0x00FF;
-        private int countingEvent = 0;
+
+        // Raw input registration flags.
+        private const uint RIDEV_INPUTSINK = 0x00000100; // receive input even when app is not in focus
 
 
-        // pointer that point to the target device 
-        private IntPtr targetDeviceHandle = IntPtr.Zero;
 
-        //
-        private IntPtr hwnd;
+        // =====================================================================
+        // FIELDS
+        // =====================================================================
+        /// <summary>
+        /// Handle to the macro keypad device, retrieved during initialization.
+        /// Used in HandleRawInput to filter events to only my macro device.
+        /// </summary>
+        private IntPtr _targetDeviceHandle = IntPtr.Zero;
 
-        // delegate for the hook procedure
-        // more info about this delegate: https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/ms644985(v=vs.85)
+
+        /// <summary>
+        /// Handle to the application window. Required for RegisterRawInputDevices
+        /// and for attaching the HwndSource hook.
+        /// </summary>
+        private IntPtr _hwnd;
+
+
+        // A callback function to use with SetWindowsHookEx
         // nCode: only have 1 value = 0. But technically we have to check for nCode (nCode >= 0)
         // if nCode < 0 that mean the window told us this is system message and must be passed to CallNextHookEx
 
         // wParam and lParam are pointer size that contain extra info window gave us (so those are not pointer)
         // in this case: WPARAM has info about the event (like keydown, keyup, etc)
         // LPARAM has info about the key (like which key is it)
+        /// <summary>
+        /// Delegate for the low-level keyboard hook callback (SetWindowsHookEx)
+        /// Must be kept as a field to prevent garbage collection — if GC collects it,
+        /// Windows will call a dangling pointer and crash the process.
+        /// </summary>
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+        private LowLevelKeyboardProc _lowLevelKeyboardProc;
 
-        // we need to define the proce. Cause we would need it even after the InstallMacroHook done.
-        // Cause window need to call this function every time we get event from the hook chain.
-        // So we need to make sure this function is still exist in the memory (not garbage collected) after the InstallMacroHook done. So we need to make it a field of the class
-        private LowLevelKeyboardProc lowLevelKeyboardProc;
 
-        // the handle of our HandleRawInput
-        private IntPtr macroHookHandle;
+        /// <summary>
+        /// Handle returned by SetWindowsHookEx. Used to remove the hook on shutdown.
+        /// </summary>
+        private IntPtr _macroHookHandle;
 
-        // the flag for RegisterDevice to the app run in background
-        private const uint RIDEV_NOLEGACY = 0x00000030;
-        private const uint RIDEV_INPUTSINK = 0x00000100;
 
-        // the handle for window
+        /// <summary>
+        /// WPF interop source and its hook delegate. Kept as fields to prevent GC.
+        /// </summary>
         private HwndSource _source;
         private HwndSourceHook _sourceHook;
 
 
+        /// <summary>
+        /// Debug counter — tracks how many WM_INPUT messages have arrived.
+        /// </summary>
+        private int countingEvent = 0;
 
-        // OUR METHODS
+
+
+        // =====================================================================
+        // CONSTRUCTOR
+        // =====================================================================
+        public RawInputHook(Window window)
+        {
+            Console.WriteLine("[RawInputHook] Initializing...");
+
+            // this is literally mean handle to the window
+            _hwnd = new WindowInteropHelper(window).Handle;
+
+            // Let install the hook:
+            // This is the hook to read and intercept the input events from window
+            InstallMacroHook();
+
+
+            // We first list our devices
+            (RawInputDeviceList[] deviceList, uint result) = ListDevice();
+
+            if (result == uint.MaxValue)  // this is actually the uint -1 in the doc
+            {
+                Console.WriteLine("Failed to get device list");
+                int errorCode = Marshal.GetLastWin32Error();
+                string errorMessage = new Win32Exception(errorCode).Message;
+                Console.WriteLine($"Error {errorCode}: {errorMessage}");
+
+                return;
+            }
+            else
+            {
+                // then we scan through the device list and find it
+                bool isFoundTarget = FindTargetDevice(deviceList);
+                if (isFoundTarget)
+                {
+                    Console.WriteLine("Found target device with handle: " + _targetDeviceHandle);
+                }
+                else
+                {
+                    Console.WriteLine("Target device not found");
+                    return;
+                }
+
+
+
+                // Then we need to register that device
+                bool isRegisterSuccessful = RegisterDevice();
+
+                if (isRegisterSuccessful)
+                {
+                    Console.WriteLine("Register device succesfully");
+                }
+                else
+                {
+                    Console.WriteLine("Register device NOT succesful");
+                    int errorCode = Marshal.GetLastWin32Error();
+                    Console.WriteLine("Register Success " + errorCode);
+
+                    return;
+                }
+
+
+
+                // then now we need the HwndSource (this is so confusing so pls look this up)
+                // but basically this capture all the message sent to THIS WINDOW (and not other application)
+                // Also if you wondering if this hook receive the message first or our LowLevel receive first -> then the low level receive first
+                // The only reason the message for RawInput come first is because Raw Input process the message SO FAST it comes out first
+                _source = HwndSource.FromHwnd(_hwnd);
+                _sourceHook = HandleRawInput;
+                _source.AddHook(_sourceHook);
+
+            }
+
+        }
+
+
+        // INSTALL HOOK METHOD
+        private void InstallMacroHook()
+        {
+            int idHook = 13; // a hook procedure that monitors low-level keyboard input events
+
+            // the delegate (the hook procedure).
+            // we simply need to declare it to get the pointer to it (which is what SetWindowsHookEx need)
+
+            // since it's a delegate (a callback) we need to pass the actual function that match the delegate (the function is HandleRawInput)
+            _lowLevelKeyboardProc = new LowLevelKeyboardProc(LowLevelKeyboardFilter);
+
+            // null → GetModuleHandle returns the handle of the running .exe.
+            // This is required for global hooks to locate our callback.
+            IntPtr currModuleHandle = GetModuleHandle(null);
+
+            // dwThreadId = 0 → hook all threads in the system (global hook).
+            uint dwThreadId = 0;
+
+            _macroHookHandle = SetWindowsHookEx(idHook, _lowLevelKeyboardProc, currModuleHandle, dwThreadId);
+
+
+        }
+
+
 
         // this is the function that our hook would call when it receive event from the hook chain
         private IntPtr LowLevelKeyboardFilter(int nCode, IntPtr wParam, IntPtr lParam)
@@ -360,7 +612,7 @@ namespace ChatVisual
                 bool isInjected = (kbdStruct.flags & 0x10) != 0;
                 if (isInjected)
                 {
-                    return CallNextHookEx(macroHookHandle, nCode, wParam, lParam);
+                    return CallNextHookEx(_macroHookHandle, nCode, wParam, lParam);
                 }
 
                 // we swallow the event if it's F1 - F9  and are not injected event
@@ -371,37 +623,11 @@ namespace ChatVisual
                     return (IntPtr)1; // swallow
                 }
 
-                return CallNextHookEx(macroHookHandle, nCode, wParam, lParam); // everything else passes
+                return CallNextHookEx(_macroHookHandle, nCode, wParam, lParam); // everything else passes
 
             }
         }
 
-        // INSTALL HOOK METHOD
-        private void InstallMacroHook()
-        {
-            // Id for the WH_KEYBOARD_LL -> what we need
-            int idHook = 13;
-
-            // the delegate (the hook procedure).
-            // we simply need to declare it to get the pointer to it (which is what SetWindowsHookEx need)
-
-            // since it's a delegate (a callback) we need to pass the actual function that match the delegate (the function is HandleRawInput)
-            lowLevelKeyboardProc = new LowLevelKeyboardProc(LowLevelKeyboardFilter);
-
-            // then we need the handle to this module (or the module contain the callback).
-            // in this case then IT IS THIS CLASS
-            IntPtr currModuleHandle = GetModuleHandle(null); // passing null mean we want the handle of the current module (the exe that run this code)
-
-            // dwThreadId
-            // passing threadId = 0 mean we want to hook all the thread in the system (global hook).
-            uint newModuleHandle = 0;
-
-            // calling the SetWindowsHookEx to install the hook
-            // it return the macroHookHandle. We can use this to remove the hook later
-            macroHookHandle = SetWindowsHookEx(idHook, lowLevelKeyboardProc, currModuleHandle, newModuleHandle);
-
-
-        }
 
 
         // LIST DEVICES METHOD
@@ -443,12 +669,12 @@ namespace ChatVisual
             rawInputDevices[0].usUsagePage = 0x0001; // mouse class driver and mapped driver
             rawInputDevices[0].usUsage = 0x0006; // no idea???
             rawInputDevices[0].dwFlags = RIDEV_INPUTSINK; // get data even when the app is not focused
-            rawInputDevices[0].hwndTarget = hwnd;
+            rawInputDevices[0].hwndTarget = _hwnd;
 
 
-            Console.WriteLine("Window handle: " + hwnd);
+            Console.WriteLine("Window handle: " + _hwnd);
 
-            rawInputDevices[0].hwndTarget = hwnd;
+            rawInputDevices[0].hwndTarget = _hwnd;
 
             bool isRegisterSuccessful = RegisterRawInputDevices(
                 rawInputDevices,
@@ -503,7 +729,7 @@ namespace ChatVisual
                 string bufferString = Marshal.PtrToStringAnsi(buffer);
                 if (bufferString.Contains("VID_1189") && bufferString.Contains("MI_00")) // this is innfo of our macro
                 {
-                    targetDeviceHandle = device.hDevice;
+                    _targetDeviceHandle = device.hDevice;
                     // release that memory back to use we're done
                     Marshal.FreeHGlobal(buffer);
 
@@ -585,7 +811,7 @@ namespace ChatVisual
 
                 // extract information for the RawInput header (this use to determine if it's the event we want)
                 uint headerdwType = header.dwType; // 0 is mouse, 1 is keyboard, 2 is HID
-                IntPtr headerhDevice = header.hDevice; // this is the handle to the device that generate this event. We can compare this with our targetDeviceHandle to see if it's the event we want
+                IntPtr headerhDevice = header.hDevice; // this is the handle to the device that generate this event. We can compare this with our _targetDeviceHandle to see if it's the event we want
                 IntPtr headerwParam = header.wParam; // extr info 
 
 
@@ -622,7 +848,7 @@ namespace ChatVisual
                     // dwType == 1 -> come from keyboard
                     // rawInput.keyboard.Flags == 0 -> only keydown event
                     bool isTargetKey = keyboardVkey >= 0x70 && keyboardVkey <= 0x78; // F1-F9
-                    bool isMacroDevice = headerhDevice == targetDeviceHandle;
+                    bool isMacroDevice = headerhDevice == _targetDeviceHandle;
                     bool isKeyUp = (keyboardFlags & 0x0001) != 0; // RI_KEY_BREAK
 
                     if (isTargetKey) // only do all these processing if it's the targetkey
@@ -665,9 +891,9 @@ namespace ChatVisual
         // Clean up function to remove the hook when we're done
         public void Shutdown()
         {
-            if (macroHookHandle != IntPtr.Zero)
+            if (_macroHookHandle != IntPtr.Zero)
             {
-                bool ok = UnhookWindowsHookEx(macroHookHandle);
+                bool ok = UnhookWindowsHookEx(_macroHookHandle);
 
                 if (!ok)
                 {
@@ -675,84 +901,10 @@ namespace ChatVisual
                     Console.WriteLine("UnhookWindowsHookEx failed: " + error);
                 }
 
-                macroHookHandle = IntPtr.Zero;
+                _macroHookHandle = IntPtr.Zero;
             }
         }
 
-
-
-
-        // OUR CONSTRUCTOR
-        public RawInputHook(Window window)
-        {
-
-            // Let install the hook:
-            // This is the hook to read and intercept the input events from window
-            InstallMacroHook();
-
-
-            // this is literally mean handle to the window
-            hwnd = new WindowInteropHelper(window).Handle;
-
-            Console.WriteLine("Hey the Raw Input Constructor is running");
-
-            // We first list our devices
-            (RawInputDeviceList[] deviceList, uint result) = ListDevice();
-
-            if (result == uint.MaxValue)  // this is actually the uint -1 in the doc
-            {
-                Console.WriteLine("Failed to get device list");
-                int errorCode = Marshal.GetLastWin32Error();
-                string errorMessage = new Win32Exception(errorCode).Message;
-                Console.WriteLine($"Error {errorCode}: {errorMessage}");
-
-                return;
-            }
-            else
-            {
-                // then we scan through the device list and find it
-                bool isFoundTarget = FindTargetDevice(deviceList);
-                if (isFoundTarget)
-                {
-                    Console.WriteLine("Found target device with handle: " + targetDeviceHandle);
-                }
-                else
-                {
-                    Console.WriteLine("Target device not found");
-                    return;
-                }
-
-
-
-                // Then we need to register that device
-                bool isRegisterSuccessful = RegisterDevice();
-
-                if (isRegisterSuccessful)
-                {
-                    Console.WriteLine("Register device succesfully");
-                }
-                else
-                {
-                    Console.WriteLine("Register device NOT succesful");
-                    int errorCode = Marshal.GetLastWin32Error();
-                    Console.WriteLine("Register Success " + errorCode);
-
-                    return;
-                }
-
-
-
-                // then now we need the HwndSource (this is so confusing so pls look this up)
-                // but basically this capture all the message sent to THIS WINDOW (and not other application)
-                // Also if you wondering if this hook receive the message first or our LowLevel receive first -> then the low level receive first
-                // The only reason the message for RawInput come first is because Raw Input process the message SO FAST it comes out first
-                _source = HwndSource.FromHwnd(hwnd);
-                _sourceHook = HandleRawInput;
-                _source.AddHook(_sourceHook);
-
-            }
-
-        }
 
     }
 }
