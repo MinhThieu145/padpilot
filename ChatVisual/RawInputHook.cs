@@ -585,46 +585,7 @@ namespace ChatVisual
 
             Console.WriteLine("[RawInputHook] Low-level keyboard hook installed.");
             return true;
-
-
-
         }
-
-        /// <summary>
-        /// Enumerates all raw input devices currently connected to the system.
-        /// Uses two calls: first to get the count, then to get the actual list.
-        /// Returns null on failure.
-        /// </summary>
-        private RawInputDeviceList[] GetDeviceList()
-        {
-            uint dwSize = (uint)Marshal.SizeOf<RawInputDeviceList>();
-            uint deviceCount = 0;
-
-            // we first get the number of devices
-            GetRawInputDeviceList(IntPtr.Zero, ref deviceCount, dwSize);
-
-            if (deviceCount == 0)
-            {
-                Console.WriteLine("[RawInputHook] No raw input devices found.");
-                return null;
-            }
-
-            RawInputDeviceList[] deviceList = new RawInputDeviceList[(int)deviceCount];
-
-            // Second call: fills the actual device list array.
-            uint result = GetRawInputDeviceList(deviceList, ref deviceCount, dwSize);
-
-            if (result == uint.MaxValue) // uint.MaxValue = (uint)-1 = failure
-            {
-                LogWin32Error("GetRawInputDeviceList");
-                return null;
-            }
-
-            Console.WriteLine($"[RawInputHook] Found {deviceCount} raw input device(s).");
-            return deviceList;
-
-        }
-
 
 
 
@@ -682,44 +643,43 @@ namespace ChatVisual
 
 
 
-        // REGISTER DEVICES METHOD
-        // This function register our device with window
-        // basically told window: "hey I want to listen to all the input of the device to be here
-        private bool RegisterDevice()
+
+        /// <summary>
+        /// Enumerates all raw input devices currently connected to the system.
+        /// Uses two calls: first to get the count, then to get the actual list.
+        /// Returns null on failure.
+        /// </summary>
+        private RawInputDeviceList[] GetDeviceList()
         {
-            // we first need to make sure we get the size of the structure first
-            uint cbSize = (uint)Marshal.SizeOf<RawInputDevice>();
-            uint uiNumDevices = 1;
-            RawInputDevice[] rawInputDevices = new RawInputDevice[(int)uiNumDevices];
+            uint dwSize = (uint)Marshal.SizeOf<RawInputDeviceList>();
+            uint deviceCount = 0;
 
+            // we first get the number of devices
+            GetRawInputDeviceList(IntPtr.Zero, ref deviceCount, dwSize);
 
+            if (deviceCount == 0)
+            {
+                Console.WriteLine("[RawInputHook] No raw input devices found.");
+                return null;
+            }
 
+            RawInputDeviceList[] deviceList = new RawInputDeviceList[(int)deviceCount];
 
+            // Second call: fills the actual device list array.
+            uint result = GetRawInputDeviceList(deviceList, ref deviceCount, dwSize);
 
-            // we need to populate the struct for ourself. Since the uiNumDevices = 1 (only 1 element)
-            rawInputDevices[0].usUsagePage = 0x0001; // mouse class driver and mapped driver
-            rawInputDevices[0].usUsage = 0x0006; // no idea???
-            rawInputDevices[0].dwFlags = RIDEV_INPUTSINK; // get data even when the app is not focused
-            rawInputDevices[0].hwndTarget = _hwnd;
+            if (result == uint.MaxValue) // uint.MaxValue = (uint)-1 = failure
+            {
+                LogWin32Error("GetRawInputDeviceList");
+                return null;
+            }
 
-
-            Console.WriteLine("Window handle: " + _hwnd);
-
-            rawInputDevices[0].hwndTarget = _hwnd;
-
-            bool isRegisterSuccessful = RegisterRawInputDevices(
-                rawInputDevices,
-                uiNumDevices,
-                cbSize
-            );
-
-
-            return isRegisterSuccessful;
+            Console.WriteLine($"[RawInputHook] Found {deviceCount} raw input device(s).");
+            return deviceList;
 
         }
 
-
-        // 
+        
         private bool FindTargetDevice(RawInputDeviceList[] deviceList)
         {
             // let see all the device
@@ -777,31 +737,41 @@ namespace ChatVisual
         }
 
 
-
-        // Method to inject the keyboard event from RawInput with SendInput
-        private void InjectKeyboardEvent(ushort vKey, bool isKeyUp)
+        // REGISTER DEVICES METHOD
+        // This function register our device with window
+        // basically told window: "hey I want to listen to all the input of the device to be here
+        private bool RegisterDevice()
         {
-            tagINPUT[] tagINPUTs = new tagINPUT[1];
+            // we first need to make sure we get the size of the structure first
+            uint cbSize = (uint)Marshal.SizeOf<RawInputDevice>();
+            uint uiNumDevices = 1;
+            RawInputDevice[] rawInputDevices = new RawInputDevice[(int)uiNumDevices];
 
-            tagINPUTs[0].type = 1; // 1 for keyboard input
-            tagINPUTs[0].tagInputUnion.ki = new tagKEYBDINPUT
-            {
-                wVk = vKey,
-                wScan = 0,
-                dwFlags = isKeyUp ? 0x0002u : 0x0000u, // KEYEVENTF_KEYUP for key up, 0 for key down
-                time = 0,
-                dwExtraInfo = UIntPtr.Zero
-            };
 
-            uint sent = SendInput(1, tagINPUTs, Marshal.SizeOf<tagINPUT>());
 
-            if (sent != tagINPUTs.Length)
-            {
-                Console.WriteLine("SendInput failed or was blocked.");
-            }
+
+
+            // we need to populate the struct for ourself. Since the uiNumDevices = 1 (only 1 element)
+            rawInputDevices[0].usUsagePage = 0x0001; // mouse class driver and mapped driver
+            rawInputDevices[0].usUsage = 0x0006; // no idea???
+            rawInputDevices[0].dwFlags = RIDEV_INPUTSINK; // get data even when the app is not focused
+            rawInputDevices[0].hwndTarget = _hwnd;
+
+
+            Console.WriteLine("Window handle: " + _hwnd);
+
+            rawInputDevices[0].hwndTarget = _hwnd;
+
+            bool isRegisterSuccessful = RegisterRawInputDevices(
+                rawInputDevices,
+                uiNumDevices,
+                cbSize
+            );
+
+
+            return isRegisterSuccessful;
 
         }
-
 
 
         // this is the method that we will add to the hook.
@@ -917,6 +887,32 @@ namespace ChatVisual
 
             return IntPtr.Zero;
         }
+
+
+        // Method to inject the keyboard event from RawInput with SendInput
+        private void InjectKeyboardEvent(ushort vKey, bool isKeyUp)
+        {
+            tagINPUT[] tagINPUTs = new tagINPUT[1];
+
+            tagINPUTs[0].type = 1; // 1 for keyboard input
+            tagINPUTs[0].tagInputUnion.ki = new tagKEYBDINPUT
+            {
+                wVk = vKey,
+                wScan = 0,
+                dwFlags = isKeyUp ? 0x0002u : 0x0000u, // KEYEVENTF_KEYUP for key up, 0 for key down
+                time = 0,
+                dwExtraInfo = UIntPtr.Zero
+            };
+
+            uint sent = SendInput(1, tagINPUTs, Marshal.SizeOf<tagINPUT>());
+
+            if (sent != tagINPUTs.Length)
+            {
+                Console.WriteLine("SendInput failed or was blocked.");
+            }
+
+        }
+
 
 
         // Clean up function to remove the hook when we're done
