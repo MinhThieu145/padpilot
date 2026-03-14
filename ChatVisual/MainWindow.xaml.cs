@@ -1,0 +1,171 @@
+﻿using System;
+using System.Collections.ObjectModel;
+using System.Drawing;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Input;
+using static ChatVisual.RawInputHook;
+
+
+namespace ChatVisual
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+
+
+        // declare claude client
+        private ClaudeClient claudeClient;
+        private RawInputHook rawInputHook;
+
+        private string currentScreenshot;
+
+        // this is a special class that act similar to react hook, it's notify UI when change
+        ObservableCollection<ChatMessage> Messages;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+
+            // claude client
+            claudeClient = new ClaudeClient();
+
+
+            // intitialize the messages
+            Messages = new ObservableCollection<ChatMessage>();
+            ChatHistory.ItemsSource = Messages;
+
+            // Confirm if this is 64 bit or 32 bit process, and the size of the RawInputHeader struct
+            Console.WriteLine($"IntPtr.Size = {IntPtr.Size}");
+            Console.WriteLine($"Is64BitProcess = {Environment.Is64BitProcess}");
+            Console.WriteLine($"RawInputHeader size = {Marshal.SizeOf<RawInputHeader>()}");
+
+        }
+
+        // this is for the window handle.
+        // This make sure the window handle is fully ready
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // we declare the rawInputHook here since we need its handle 
+            rawInputHook = new RawInputHook(this);
+
+        }
+
+        // this is for the window close, we need to shutdown the raw input hook to release the handle
+        // this connect to the Closed event in the <Window> tag in the MainWindow.xaml
+        private void Window_Closed(object sender, EventArgs e)
+        {
+            rawInputHook?.Shutdown();
+        }
+
+        // handler for the the window moving buttons
+        private void MoveWindowHandler(object sender, KeyEventArgs e)
+        {
+            double step = 10;
+
+
+            switch (e.Key)
+            {
+                case Key.Up:
+                    this.Top -= step;
+                    break;
+                case Key.Down:
+                    this.Top += step;
+                    break;
+                case Key.Left:
+                    this.Left -= step;
+                    break;
+                case Key.Right:
+                    this.Left += step;
+                    break;
+
+            }
+            ;
+
+        }
+
+
+        // handler for button "Send"
+        // we disable the button while the message are sent
+        private async void SendButton_Click(object sender, RoutedEventArgs e)
+        {
+            string text = MessageInput.Text?.Trim();
+
+            if (string.IsNullOrWhiteSpace(text) && currentScreenshot == null)
+                return;
+
+            SendMessageButton.IsEnabled = false;
+
+            try
+            {
+                Console.WriteLine(text);
+
+                Messages.Add(new ChatMessage() { Role = "User", Content = text ?? "" });
+                await Task.Delay(1);
+
+                string response = await claudeClient.sendMessage(text ?? "", currentScreenshot);
+
+                Messages.Add(new ChatMessage() { Role = "Assistant", Content = response });
+
+                MessageInput.Text = "";
+                currentScreenshot = null;
+            }
+            finally
+            {
+                SendMessageButton.IsEnabled = true;
+            }
+        }
+
+
+        // method for taking screenshot
+        private void TakeScreenshot(object sender, RoutedEventArgs e)
+        {
+            Console.WriteLine("Screenshot taken");
+
+            // the image bitmap
+            int width = (int)SystemParameters.PrimaryScreenWidth;
+            int height = (int)SystemParameters.PrimaryScreenHeight;
+
+            using (Bitmap myBitmap = new Bitmap(width, height))
+            {
+                using (Graphics g = Graphics.FromImage(myBitmap))
+                {
+                    g.CopyFromScreen(new System.Drawing.Point(0, 0),
+                    new System.Drawing.Point(0, 0),
+                    new System.Drawing.Size(width, height)
+                    );
+
+                    // myBitmap.Save("screenshot.png");
+                }
+
+
+                // get create a memory stream
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    // now we save the bitmap we have earlier into the stream
+                    // instead of save to disk
+                    myBitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+
+                    // we pour everything from the stream to a byte array
+                    // if you use Read() you would have to care about the position of the reader
+                    byte[] bytes = ms.ToArray();
+
+                    // convert that to base64
+                    string base64 = Convert.ToBase64String(bytes);
+
+                    currentScreenshot = base64;
+                }
+
+            }
+
+
+
+
+        }
+
+    }
+}
