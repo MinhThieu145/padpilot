@@ -4,183 +4,137 @@
 
 ChatVisual is a Windows desktop assistant built with C# and WPF.
 
-The app currently combines three main areas:
+Right now the app has three main parts:
 
-1. **Desktop chat UI**
+1. **Chat UI**
 2. **Screenshot capture**
-3. **Keyboard interception for a USB macro pad**
+3. **Global macro hotkeys using a low-level keyboard hook**
 
-The most unusual part of the project is the input system.
+The current version uses a simplified input design:
 
-The macro pad sends normal keyboard function keys like `F1` to `F9`, but the app needs to treat those keys differently depending on which physical device sent them:
+- all physical `F1` through `F9` keys are intercepted globally
+- those keys are handled by the app as macro keys
+- the keys are swallowed so other apps do not receive them
 
-- if the macro pad sends `F1`–`F9`, the app should intercept them and run custom logic
-- if the normal keyboard sends `F1`–`F9`, the keys should behave normally
+This means the app no longer tries to distinguish between:
+- the external macro pad
+- the normal keyboard
 
-Because Windows does not provide both **global suppression** and **device identity** in the same keyboard API, the project currently combines two different input mechanisms.
+That was part of an earlier design, but it was intentionally removed for v1 to keep the project simpler and more reliable.
 
 ---
 
 ## Main components
 
 ### `MainWindow`
-Responsible for the visible desktop UI.
+The main WPF window.
 
-Current responsibilities:
-
-- initializes the app window
-- displays chat messages
-- handles user message input
+Responsibilities:
+- displays the chat UI
+- stores and renders chat messages
+- sends user messages to the assistant
 - captures screenshots
-- creates the input hook system on startup
+- creates the keyboard hook system on startup
 
 ### `ClaudeClient`
-Responsible for communication with the Anthropic API.
+Handles communication with the Anthropic API.
 
-Current responsibilities:
-
-- stores chat history
+Responsibilities:
+- stores message history
 - sends text messages
-- optionally includes a screenshot
+- optionally includes screenshot data
 - retries on overload errors
 
 ### `ChatMessage`
-Simple model used by the UI to render messages in chat history.
+Simple model for chat items shown in the UI.
 
 ### `RawInputHook`
-Responsible for the macro pad / keyboard interception system.
+Despite the name, this class now acts as the app’s keyboard hook manager.
 
-Current responsibilities:
+Responsibilities:
+- installs the global low-level keyboard hook
+- intercepts physical `F1`–`F9`
+- ignores injected input when appropriate
+- routes macro key presses into app-defined macro behavior
+- removes the hook on shutdown
 
-- installs a global low-level keyboard hook
-- enumerates input devices
-- finds the target macro pad by device identifier
-- registers for raw keyboard input
-- reads raw keyboard packets
-- decides whether a key should be suppressed or replayed
-
----
-
-## Why the input architecture is unusual
-
-This project needs two different capabilities:
-
-1. **globally block a key before other apps receive it**
-2. **know which physical keyboard device generated the key**
-
-No single keyboard API used here gives both.
-
-### Low-level keyboard hook (`WH_KEYBOARD_LL`)
-This can globally intercept and suppress keys.
-
-Useful because:
-
-- it can swallow keys before they continue through the normal input path
-
-Limitation:
-
-- it does **not** identify the physical keyboard device
-
-That means the hook can see:
-- virtual key code
-- scan code
-- flags
-- timestamp
-
-But it cannot answer:
-- did this key come from the macro pad?
-- or from the normal keyboard?
-
-### Raw Input (`WM_INPUT`)
-This can identify which physical device generated keyboard input.
-
-Useful because:
-
-- it provides a device handle (`hDevice`)
-- it allows the app to distinguish between keyboards
-
-Limitation:
-
-- it is **read-only**
-- by the time the app reads Raw Input, it is too late to stop the original key from reaching other apps
+> Note: the class name is still `RawInputHook` from the earlier design, even though Raw Input is no longer used in the current version.
 
 ---
 
-## Current input strategy
+## Current input architecture
 
-The project currently uses a **swallow first, decide later** strategy.
+## Current design
+The app currently uses **only** `WH_KEYBOARD_LL` (`SetWindowsHookEx`) for macro key handling.
 
-### Flow
+### What happens
+1. A key is pressed anywhere in Windows
+2. The low-level keyboard hook receives the event
+3. If the key is:
+   - physical
+   - not injected
+   - one of `F1` through `F9`
+   
+   then the app:
+   - treats it as a macro key
+   - runs app-defined macro behavior
+   - swallows the key so it does not continue to other apps
 
-1. A physical key is pressed
-2. The low-level hook receives it first
-3. If the key is `F1`–`F9` and not injected, the app swallows it immediately
-4. Later, Raw Input receives the keyboard packet
-5. The app checks which device generated the key
-6. Then the app decides:
+4. All other keys continue normally
 
-- **macro pad**
-  - keep the key suppressed
-  - run custom macro logic
+### Result
+This makes `F1`–`F9` global app macro keys.
 
-- **normal keyboard**
-  - replay the key using `SendInput`
-  - this restores normal behavior for the user
+That includes:
+- the external macro pad
+- the normal keyboard
 
----
-
-## Why replay is needed
-
-Because the low-level hook does not know the physical keyboard device, it cannot safely decide in real time whether an `F1` press should be blocked forever or allowed through.
-
-So the current design does this:
-
-- block first
-- inspect the device later with Raw Input
-- replay only if the key came from a normal keyboard
-
-This is the core design tradeoff in the current system.
+The current design does **not** distinguish which physical keyboard sent the key.
 
 ---
 
-## Current replay loop issue and fix
+## Why the design was simplified
 
-When the app replays a normal keyboard key with `SendInput`, that replayed event can come back through the input pipeline again.
+An earlier version tried to combine:
 
-That can create an infinite loop:
+- `WH_KEYBOARD_LL` for global suppression
+- Raw Input for device identification
 
-1. normal keyboard key is swallowed
-2. Raw Input decides it should be restored
-3. app calls `SendInput`
-4. replayed input appears again
-5. app mistakenly tries to restore it again
-6. loop repeats
+The goal was:
 
-### Current mitigation
+- macro pad `F1`–`F9` should be intercepted
+- normal keyboard `F1`–`F9` should behave normally
 
-The project currently ignores Raw Input events where:
+That version turned out to be much more complex because:
 
-- `RAWINPUTHEADER.hDevice == IntPtr.Zero`
+- the low-level hook can block keys, but cannot identify the keyboard device
+- Raw Input can identify the device, but cannot block the original key in time
+- replaying keys with `SendInput` introduced extra complexity
+- background Raw Input behavior was unreliable in the current app setup
 
-This is being used as the signal that the event is injected rather than coming from a physical keyboard.
-
-This behavior works for the current prototype, but it should still be treated as an implementation assumption that may need more hardening later.
+For the current stage of the project, the simpler design was chosen instead:
+- faster development
+- less fragile behavior
+- fewer moving parts
+- easier debugging
 
 ---
 
-## Current device detection approach
+## Tradeoffs of the current design
 
-The macro pad is currently identified by checking its device path string from `GetRawInputDeviceInfo`.
+### Advantages
+- much simpler input system
+- no Raw Input dependency
+- no replay logic
+- no background Raw Input problems
+- easier to reason about and maintain
 
-The current matching logic looks for identifiers such as:
+### Limitations
+- normal keyboard `F1`–`F9` no longer behave normally
+- the app does not distinguish between keyboards
+- all physical `F1`–`F9` are treated as app macro keys
 
-- `VID_1189`
-- `MI_00`
-
-This is a simple and practical prototype approach, but it is also hardcoded.
-
-### Limitation
-If the hardware changes, or if Windows exposes the device differently, this matching logic may need to be updated.
+This tradeoff is currently acceptable for v1.
 
 ---
 
@@ -188,80 +142,59 @@ If the hardware changes, or if Windows exposes the device differently, this matc
 
 1. Main window loads
 2. `RawInputHook` is created
-3. the low-level keyboard hook is installed
-4. the app enumerates Raw Input devices
-5. the target macro pad is identified
-6. keyboard Raw Input is registered to the app window
-7. the app begins listening for:
-   - low-level keyboard events
-   - raw keyboard input messages
+3. the global low-level keyboard hook is installed
+4. the app is ready to intercept `F1`–`F9`
 
 ---
 
 ## Current shutdown flow
 
-On app close:
+When the app closes:
 
-- the low-level keyboard hook is explicitly removed with `UnhookWindowsHookEx`
+1. the main window closes
+2. the keyboard hook is explicitly removed using `UnhookWindowsHookEx`
 
-This is necessary because the keyboard hook is a real Windows hook resource and should be cleaned up explicitly.
-
----
-
-## Known architectural weakness
-
-The current Raw Input target is tied to the WPF window.
-
-This mostly works in the foreground, but background delivery has been inconsistent in testing.
-
-Because of that, the next architectural step is:
-
-### Planned improvement
-Move Raw Input delivery to a dedicated hidden or message-only native window.
-
-The goal is to make Raw Input less dependent on the lifecycle and focus behavior of the main WPF UI window.
-
-This change is not finished yet.
+This cleanup is required because the keyboard hook is a real Windows hook resource.
 
 ---
 
-## Current design summary
+## Current macro behavior
 
-### What works well
-- chat UI works
-- screenshot flow works
-- low-level hook works globally
-- macro pad device can be identified
-- replay loop has a working mitigation
-- foreground macro pad handling works
+The hook currently routes intercepted `F1`–`F9` keys into a macro handler method.
 
-### What is still fragile
-- background Raw Input reliability
-- hardcoded device matching
-- current input logic is tightly coupled to Win32 interop code
-- more cleanup and testable abstractions are still needed
+That handler is the place where app-specific macro actions should live.
+
+This is the main extension point for future macro features.
 
 ---
 
 ## Future direction
 
-Likely next steps:
+The original long-term idea is still valid:
 
-1. finish the silent/message-only Raw Input window
-2. separate pure decision logic from Win32 plumbing
-3. make macro actions configurable
-4. improve logging and debugging support
-5. add automated tests for pure input-decision logic
-6. keep manual testing for real hardware behavior
+- intercept `F1`–`F9` from the macro pad only
+- allow normal keyboard `F1`–`F9` to continue behaving normally
+
+That would require reintroducing a more advanced architecture, likely involving:
+- device-specific input handling
+- a more reliable message-only or native input sink
+- a cleaner separation between input plumbing and decision logic
+
+That work is intentionally postponed for now.
+
+The current version prioritizes simplicity over device-specific behavior.
 
 ---
 
-## Mental model
+## Summary
 
-A simple way to think about the current system:
+The current architecture is:
 
-- **Low-level hook** = power to block
-- **Raw Input** = power to identify
-- **SendInput** = restore normal behavior when the blocked key came from the wrong device
+- **WPF UI for the desktop assistant**
+- **Claude API integration for chat**
+- **global low-level keyboard hook for macro keys**
 
-That is the core architecture of the project right now.
+The current version is intentionally simplified:
+- all physical `F1`–`F9` are app macro keys
+- Raw Input is not used
+- device-specific macro handling is future work
