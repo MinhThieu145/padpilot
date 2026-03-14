@@ -588,62 +588,6 @@ namespace ChatVisual
         }
 
 
-
-        // this is the function that our hook would call when it receive event from the hook chain
-        private IntPtr LowLevelKeyboardFilter(int nCode, IntPtr wParam, IntPtr lParam)
-        {
-            if (nCode < 0)
-            {
-                // this mean the window told us this is system message and must be passed to CallNextHookEx
-                return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
-            }
-            else
-            {
-                // we can decide to swallow these event of keep passing them
-
-                // Okay we have a big problem: we only know the key, but not the device from the wParam and lParam -> don't know if it's our macro or not
-                // but the RawInput earlier can tell the device, but then it can't stop the event
-                // so the genius plan. We track the timestamp that the last macro was push down
-                // because RawInput happen before the LowLevel Hook, it a macro was press down about 15ms before it reach here: it's very likely (like 99.999%) that key is the macro key
-
-
-                // we check if the key is a macro key (F1 - F9) and if the timestamp is within 15ms of the last macro key event
-                long now = Environment.TickCount;
-
-                Console.WriteLine("Low Level Hook got event! This is the data:");
-
-                // Now we read from the lParam to get the actual key info (which key is it, etc)
-                KBDLLHOOKSTRUCT kbdStruct = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
-
-                // THIS IS AN INSANELY COMPLICATED CONDITION
-                // but in general, it check if the event is injected (not from physical keyboard)
-                // why: because the current logic is: all the event come from macro would be injected (we stop everything from F1 - F9 at low level)
-                // but the RawInput reject them IF THEY FROM THE MACRO
-                // but the way the condition works involve confusing bitwise calculation (because this flag is confusing)
-                // learn more: https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-kbdllhookstruct 
-                // LIMITATION: this is not 100% accurate, stuff like the on-screen keyboad also inject event (but it's good enough for now)
-                bool isInjected = (kbdStruct.flags & 0x10) != 0;
-                if (isInjected)
-                {
-                    return CallNextHookEx(_macroHookHandle, nCode, wParam, lParam);
-                }
-
-                // we swallow the event if it's F1 - F9  and are not injected event
-                // 
-
-                if (kbdStruct.vkCode >= 112 && kbdStruct.vkCode <= 120) // F1-F9 only
-                {
-                    return (IntPtr)1; // swallow
-                }
-
-                return CallNextHookEx(_macroHookHandle, nCode, wParam, lParam); // everything else passes
-
-            }
-        }
-
-
-
-
         /// <summary>
         /// Enumerates all raw input devices currently connected to the system.
         /// Uses two calls: first to get the count, then to get the actual list.
@@ -772,6 +716,65 @@ namespace ChatVisual
             return isRegisterSuccessful;
 
         }
+
+
+        // =====================================================================
+        // EVENT HANDLERS
+        // =====================================================================
+
+
+        // this is the function that our hook would call when it receive event from the hook chain
+        private IntPtr LowLevelKeyboardFilter(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode < 0)
+            {
+                // this mean the window told us this is system message and must be passed to CallNextHookEx
+                return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
+            }
+            else
+            {
+                // we can decide to swallow these event of keep passing them
+
+                // Okay we have a big problem: we only know the key, but not the device from the wParam and lParam -> don't know if it's our macro or not
+                // but the RawInput earlier can tell the device, but then it can't stop the event
+                // so the genius plan. We track the timestamp that the last macro was push down
+                // because RawInput happen before the LowLevel Hook, it a macro was press down about 15ms before it reach here: it's very likely (like 99.999%) that key is the macro key
+
+
+                // we check if the key is a macro key (F1 - F9) and if the timestamp is within 15ms of the last macro key event
+                long now = Environment.TickCount;
+
+                Console.WriteLine("Low Level Hook got event! This is the data:");
+
+                // Now we read from the lParam to get the actual key info (which key is it, etc)
+                KBDLLHOOKSTRUCT kbdStruct = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+
+                // THIS IS AN INSANELY COMPLICATED CONDITION
+                // but in general, it check if the event is injected (not from physical keyboard)
+                // why: because the current logic is: all the event come from macro would be injected (we stop everything from F1 - F9 at low level)
+                // but the RawInput reject them IF THEY FROM THE MACRO
+                // but the way the condition works involve confusing bitwise calculation (because this flag is confusing)
+                // learn more: https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-kbdllhookstruct 
+                // LIMITATION: this is not 100% accurate, stuff like the on-screen keyboad also inject event (but it's good enough for now)
+                bool isInjected = (kbdStruct.flags & 0x10) != 0;
+                if (isInjected)
+                {
+                    return CallNextHookEx(_macroHookHandle, nCode, wParam, lParam);
+                }
+
+                // we swallow the event if it's F1 - F9  and are not injected event
+                // 
+
+                if (kbdStruct.vkCode >= 112 && kbdStruct.vkCode <= 120) // F1-F9 only
+                {
+                    return (IntPtr)1; // swallow
+                }
+
+                return CallNextHookEx(_macroHookHandle, nCode, wParam, lParam); // everything else passes
+
+            }
+        }
+
 
 
         // this is the method that we will add to the hook.
