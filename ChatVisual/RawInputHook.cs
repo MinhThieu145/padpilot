@@ -762,12 +762,14 @@ namespace ChatVisual
                     return CallNextHookEx(_macroHookHandle, nCode, wParam, lParam);
                 }
 
-                // we swallow the event if it's F1 - F9  and are not injected event
-                // 
+                // handle F1 - F9 separatedly
 
                 if (kbdStruct.vkCode >= 112 && kbdStruct.vkCode <= 120) // F1-F9 only
                 {
+                    bool isKeyUp = (kbdStruct.flags & 0x80) != 0; // LLKHF_UP
+                    HandleMacroFunctionKey(kbdStruct.vkCode, isKeyUp);
                     return (IntPtr)1; // swallow
+
                 }
 
                 return CallNextHookEx(_macroHookHandle, nCode, wParam, lParam); // everything else passes
