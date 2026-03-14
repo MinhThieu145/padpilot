@@ -917,6 +917,13 @@ namespace ChatVisual
         }
 
 
+        // Functions to handle the Macro Function Key
+        private void HandleMacroFunctionKey(uint vkCode, bool isKeyUp)
+        {
+            // placeholder for now
+            Console.WriteLine($"Macro key handled: {vkCode}, keyUp: {isKeyUp}");
+        }
+
 
         // Clean up function to remove the hook when we're done
         public void Shutdown()
