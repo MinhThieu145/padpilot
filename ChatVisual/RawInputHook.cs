@@ -905,6 +905,22 @@ namespace ChatVisual
             }
         }
 
+        // =====================================================================
+        // UTILITIES
+        // =====================================================================
+
+        /// <summary>
+        /// Reads the last Win32 error and logs it with a human-readable message.
+        /// Call this immediately after a P/Invoke failure while SetLastError is still set.
+        /// </summary>
+        private static void LogWin32Error(string context)
+        {
+            int errorCode = Marshal.GetLastWin32Error();
+            string message = new Win32Exception(errorCode).Message;
+            Console.WriteLine($"[Win32 Error] {context} failed — code {errorCode}: {message}");
+        }
+
+
 
     }
 }
