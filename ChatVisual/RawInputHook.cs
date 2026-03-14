@@ -487,12 +487,13 @@ namespace ChatVisual
             // this is literally mean handle to the window
             _hwnd = new WindowInteropHelper(window).Handle;
 
-            // Let install the hook:
-            // This is the hook to read and intercept the input events from window
-            InstallMacroHook();
+            if (!InstallLowLevelKeyboardHook())
+            {
+                Console.WriteLine("[RawInputHook] Failed to install low-level hook. Aborting.");
+                return;
+            }
 
 
-            // We first list our devices
             (RawInputDeviceList[] deviceList, uint result) = ListDevice();
 
             if (result == uint.MaxValue)  // this is actually the uint -1 in the doc
@@ -551,8 +552,16 @@ namespace ChatVisual
         }
 
 
-        // INSTALL HOOK METHOD
-        private void InstallMacroHook()
+        // =====================================================================
+        // INITIALIZATION
+        // =====================================================================
+
+        /// <summary>
+        /// Installs a global low-level keyboard hook (WH_KEYBOARD_LL).
+        /// This hook fires for every keystroke in the system, in every application.
+        /// Our callback (LowLevelKeyboardFilter) uses it to swallow F1–F9.
+        /// </summary>
+        private bool InstallLowLevelKeyboardHook()
         {
             int idHook = 13; // a hook procedure that monitors low-level keyboard input events
 
@@ -570,6 +579,16 @@ namespace ChatVisual
             uint dwThreadId = 0;
 
             _macroHookHandle = SetWindowsHookEx(idHook, _lowLevelKeyboardProc, currModuleHandle, dwThreadId);
+
+            if (_macroHookHandle == IntPtr.Zero)
+            {
+                LogWin32Error("SetWindowsHookEx");
+                return false;
+            }
+
+            Console.WriteLine("[RawInputHook] Low-level keyboard hook installed.");
+            return true;
+
 
 
         }
@@ -919,8 +938,6 @@ namespace ChatVisual
             string message = new Win32Exception(errorCode).Message;
             Console.WriteLine($"[Win32 Error] {context} failed — code {errorCode}: {message}");
         }
-
-
 
     }
 }
