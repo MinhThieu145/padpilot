@@ -199,22 +199,10 @@ namespace ChatVisual
         // =====================================================================
 
 
-        // Windows message sent by Raw Input API when device data is ready.
-        private const int WM_INPUT = 0x00FF;
-
-        // Raw input registration flags.
-        private const uint RIDEV_INPUTSINK = 0x00000100; // receive input even when app is not in focus
-
-
 
         // =====================================================================
         // FIELDS
         // =====================================================================
-        /// <summary>
-        /// Handle to the macro keypad device, retrieved during initialization.
-        /// Used in HandleRawInput to filter events to only my macro device.
-        /// </summary>
-        private IntPtr _targetDeviceHandle = IntPtr.Zero;
 
 
         /// <summary>
@@ -244,12 +232,6 @@ namespace ChatVisual
         /// Handle returned by SetWindowsHookEx. Used to remove the hook on shutdown.
         /// </summary>
         private IntPtr _macroHookHandle;
-
-
-        /// <summary>
-        /// Debug counter — tracks how many WM_INPUT messages have arrived.
-        /// </summary>
-        private int countingEvent = 0;
 
 
 
