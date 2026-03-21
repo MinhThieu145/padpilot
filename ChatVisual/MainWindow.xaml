@@ -7,7 +7,6 @@
         xmlns:mdxam="clr-namespace:MdXaml;assembly=MdXaml"
         xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
         
-        PreviewKeyDown="MoveWindowHandler"
         Loaded="Window_Loaded"
         Closed="Window_Closed"
         

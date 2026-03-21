@@ -53,6 +53,12 @@ namespace ChatVisual
             // we declare the rawInputHook here since we need its handle 
             rawInputHook = new RawInputHook(this);
 
+            // we register the raw input for keyboard
+            rawInputHook.RegisterMacroKeyAction(112, MoveWindowUp);
+            rawInputHook.RegisterMacroKeyAction(113, MoveWindowDown);
+            rawInputHook.RegisterMacroKeyAction(114, MoveWindowLeft);
+            rawInputHook.RegisterMacroKeyAction(115, MoveWindowRight);
+
         }
 
         // this is for the window close, we need to shutdown the raw input hook to release the handle
@@ -60,32 +66,6 @@ namespace ChatVisual
         private void Window_Closed(object sender, EventArgs e)
         {
             rawInputHook?.Shutdown();
-        }
-
-        // handler for the the window moving buttons
-        private void MoveWindowHandler(object sender, KeyEventArgs e)
-        {
-            double step = 10;
-
-
-            switch (e.Key)
-            {
-                case Key.Up:
-                    this.Top -= step;
-                    break;
-                case Key.Down:
-                    this.Top += step;
-                    break;
-                case Key.Left:
-                    this.Left -= step;
-                    break;
-                case Key.Right:
-                    this.Left += step;
-                    break;
-
-            }
-            ;
-
         }
 
 
@@ -162,9 +142,42 @@ namespace ChatVisual
 
             }
 
+        }
 
+        // =====================================================================
+        // EVENT HANDLER
+        // =====================================================================
 
+        /// <summary>
+        /// Move the Window Handle up by 10 units
+        /// </summary>
+        private void MoveWindowUp()
+        {
+            this.Top -= 10;
+        }
 
+        /// <summary>
+        /// Move the Window Handle down by 10 units
+        /// </summary>
+        private void MoveWindowDown()
+        {
+            this.Top += 10;
+        }
+
+        /// <summary>
+        /// Move the Window Handle left by 10 units
+        /// </summary>
+        private void MoveWindowLeft()
+        {
+            this.Left -= 10;
+        }
+
+        /// <summary>
+        /// Move the Window Handle right by 10 units
+        /// </summary>
+        private void MoveWindowRight()
+        {
+            this.Left += 10;
         }
 
     }
