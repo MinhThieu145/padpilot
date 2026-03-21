@@ -44,12 +44,12 @@ namespace ChatVisual
 
         // then we build the async sendMessage method
         // the method would return string
-        public async Task<string> sendMessage(string message, string screenShot = null)
+        public async Task<string> sendMessage(string message, List<String> screenShots)
         {
             Console.WriteLine("Message Send: ", message);
 
             // we add our current message to our messageHistory list
-            if (screenShot == null)
+            if (screenShots.Count == 0)
             {
                 Console.WriteLine("Message sent without screenshot");
                 messageHistory.Add(new Message(RoleType.User, message));
@@ -57,25 +57,40 @@ namespace ChatVisual
             } else
             {
                 Console.WriteLine("Message sent with screenshot");
-                messageHistory.Add(new Message()
+
+                List<ContentBase> contentBases = new List<ContentBase>();
+
+                // add all the screenshots to Content
+                foreach (string screenShot in screenShots)
                 {
-                    Role = RoleType.User,
-                    Content = new List<ContentBase>()
-                    {
+                    contentBases.Add(
+                        
                         new ImageContent()
                         {
                             Source = new ImageSource()
                             {
-                                MediaType="image/png",
+                                MediaType = "image/png",
                                 Data = screenShot
                             }
-                        },
-
-                        new TextContent()
-                        {
-                            Text = message
                         }
+
+                    );
+                }
+
+                // add the text message to content
+                contentBases.Add(
+
+                    new TextContent()
+                    {
+                        Text = message,
                     }
+                
+                );
+
+                messageHistory.Add(new Message()
+                {
+                    Role = RoleType.User,
+                    Content = contentBases
                 });
             }
 
