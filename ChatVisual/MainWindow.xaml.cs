@@ -21,7 +21,7 @@ namespace ChatVisual
         private ClaudeClient claudeClient;
         private RawInputHook rawInputHook;
 
-        private string currentScreenshot;
+        private System.Collections.Generic.List<string> currentScreenshotList = new System.Collections.Generic.List<string>();
 
         // this is a special class that act similar to react hook, it's notify UI when change
         ObservableCollection<ChatMessage> Messages;
@@ -74,7 +74,7 @@ namespace ChatVisual
         {
             string text = MessageInput.Text?.Trim();
 
-            if (string.IsNullOrWhiteSpace(text) && currentScreenshot == null)
+            if (string.IsNullOrWhiteSpace(text) && currentScreenshotList.Count == 0)
                 return;
 
             SendMessageButton.IsEnabled = false;
@@ -86,12 +86,12 @@ namespace ChatVisual
                 Messages.Add(new ChatMessage() { Role = "User", Content = text ?? "" });
                 await Task.Delay(1);
 
-                string response = await claudeClient.sendMessage(text ?? "", currentScreenshot);
+                string response = await claudeClient.sendMessage(text ?? "", currentScreenshotList);
 
                 Messages.Add(new ChatMessage() { Role = "Assistant", Content = response });
 
                 MessageInput.Text = "";
-                currentScreenshot = null;
+                currentScreenshotList.Clear();
             }
             finally
             {
@@ -136,7 +136,7 @@ namespace ChatVisual
                     // convert that to base64
                     string base64 = Convert.ToBase64String(bytes);
 
-                    currentScreenshot = base64;
+                    currentScreenshotList.Add(base64);
                 }
 
             }
