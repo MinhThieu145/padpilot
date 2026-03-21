@@ -121,7 +121,7 @@
                  ScrollViewer.CanContentScroll="False">
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <Border CornerRadius="8" Padding="8" MaxWidth="500">
+                    <Border CornerRadius="4" Padding="8" Width="530">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Background" Value="#403a3a3a"/>
@@ -130,6 +130,7 @@
                                     <DataTrigger Binding="{Binding Role}" Value="User">
                                         <Setter Property="HorizontalAlignment" Value="Right" />
                                         <Setter Property="Background" Value="#402f6db5" />
+                                        
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
