@@ -58,6 +58,7 @@ namespace ChatVisual
             rawInputHook.RegisterMacroKeyAction(114, MoveWindowLeft);
             rawInputHook.RegisterMacroKeyAction(115, MoveWindowRight);
 
+
         }
 
         // this is for the window close, we need to shutdown the raw input hook to release the handle
@@ -100,8 +101,56 @@ namespace ChatVisual
         }
 
 
-        // method for taking screenshot
-        private void TakeScreenshot(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// Handle the Screenshot button click
+        /// </summary>
+        private void Screenshot_Click(object sender, RoutedEventArgs e)
+        {
+            TakeScreenshot();
+        }
+
+        // =====================================================================
+        // EVENT HANDLER
+        // =====================================================================
+
+        /// <summary>
+        /// Move the Window Handle up by 10 units
+        /// </summary>
+        private void MoveWindowUp()
+        {
+            this.Top -= 10;
+        }
+
+        /// <summary>
+        /// Move the Window Handle down by 10 units
+        /// </summary>
+        private void MoveWindowDown()
+        {
+            this.Top += 10;
+        }
+
+        /// <summary>
+        /// Move the Window Handle left by 10 units
+        /// </summary>
+        private void MoveWindowLeft()
+        {
+            this.Left -= 10;
+        }
+
+        /// <summary>
+        /// Move the Window Handle right by 10 units
+        /// </summary>
+        private void MoveWindowRight()
+        {
+            this.Left += 10;
+        }
+
+
+
+        /// <summary>
+        /// Take the screenshot of the current window 
+        /// </summary>
+        private void TakeScreenshot()
         {
             Console.WriteLine("Screenshot taken");
 
@@ -141,42 +190,6 @@ namespace ChatVisual
 
             }
 
-        }
-
-        // =====================================================================
-        // EVENT HANDLER
-        // =====================================================================
-
-        /// <summary>
-        /// Move the Window Handle up by 10 units
-        /// </summary>
-        private void MoveWindowUp()
-        {
-            this.Top -= 10;
-        }
-
-        /// <summary>
-        /// Move the Window Handle down by 10 units
-        /// </summary>
-        private void MoveWindowDown()
-        {
-            this.Top += 10;
-        }
-
-        /// <summary>
-        /// Move the Window Handle left by 10 units
-        /// </summary>
-        private void MoveWindowLeft()
-        {
-            this.Left -= 10;
-        }
-
-        /// <summary>
-        /// Move the Window Handle right by 10 units
-        /// </summary>
-        private void MoveWindowRight()
-        {
-            this.Left += 10;
         }
 
     }
