@@ -35,6 +35,11 @@
         <Style x:Key="MdStyle" TargetType="FlowDocument">
             <Setter Property="Foreground" Value="#D4D4D4" />
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="PagePadding" Value="0" />
+
+
         </Style>
 
 
