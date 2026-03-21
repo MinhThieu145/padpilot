@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -234,6 +235,14 @@ namespace ChatVisual
         private IntPtr _macroHookHandle;
 
 
+        /// <summary>
+        /// The dictionary to store the current registered macro key and their corresponding action (what to do when the key is press down or up)
+        /// </summary>
+        // Note: Action is a type for callback function that return nothing.
+        // Action<Boolean> means the callback function take a boolean parameter and return nothing
+        // Func<> is a callback function that return something, for example: Func<int, string> means the callback function take an int parameter and return a string
+        private Dictionary<int, Action> _registeredMacroKeyActions = new Dictionary<int, Action>();
+
 
         // =====================================================================
         // CONSTRUCTOR
@@ -255,6 +264,21 @@ namespace ChatVisual
         }
 
 
+        // =====================================================================
+        // PUBLIC METHODS
+        // =====================================================================
+
+        /// <summary>
+        /// Register the action for each key event (what to do when each key is press)
+        /// Return True if the registration is successful, False otherwise.
+        /// </summary>
+
+        public bool RegisterMacroKeyAction(uint vkCode, Action onKeyDown)
+        {
+            _registeredMacroKeyActions[(int)vkCode] = onKeyDown;
+
+            return true;
+        }
 
 
         // =====================================================================
@@ -359,8 +383,15 @@ namespace ChatVisual
         // Functions to handle the Macro Function Key
         private void HandleMacroFunctionKey(uint vkCode, bool isKeyUp)
         {
-            // placeholder for now
-            Console.WriteLine($"Macro key handled: {vkCode}, keyUp: {isKeyUp}");
+            // TryGetValue would return a bool (False if not exist, True otherwise)
+            // The value of the key (the action) would be stored in the "action" variable, if the key exist
+            _registeredMacroKeyActions.TryGetValue((int)vkCode, out var action);
+            Console.WriteLine($"Macro key event: vkCode={vkCode}, isKeyUp={isKeyUp}, hasAction={action != null}");
+
+            if (!isKeyUp && action != null)
+            {
+                action.Invoke(); // this is exactly like keyAction(); -> But this clearly show we invoke a callback
+            }
         }
 
 
@@ -395,6 +426,10 @@ namespace ChatVisual
             string message = new Win32Exception(errorCode).Message;
             Console.WriteLine($"[Win32 Error] {context} failed — code {errorCode}: {message}");
         }
+
+
+
+
 
     }
 }
