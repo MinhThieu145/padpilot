@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,7 +22,7 @@ namespace ChatVisual
         private ClaudeClient claudeClient;
         private RawInputHook rawInputHook;
 
-        private System.Collections.Generic.List<string> currentScreenshotList = new System.Collections.Generic.List<string>();
+        private ObservableCollection<string> currentScreenshotList = new ObservableCollection<string>();
 
         // this is a special class that act similar to react hook, it's notify UI when change
         ObservableCollection<ChatMessage> Messages;
@@ -37,6 +38,10 @@ namespace ChatVisual
             // intitialize the messages
             Messages = new ObservableCollection<ChatMessage>();
             ChatHistory.ItemsSource = Messages;
+
+            // set the source for the ScreenshotHistory (to link between the xaml UI and the currentScreenshotList)
+            ScreenshotHistory.ItemsSource = currentScreenshotList;
+
 
             // Confirm if this is 64 bit or 32 bit process, and the size of the RawInputHeader struct
             Console.WriteLine($"IntPtr.Size = {IntPtr.Size}");
@@ -191,7 +196,7 @@ namespace ChatVisual
                 Messages.Add(new ChatMessage() { Role = "User", Content = text ?? "" });
                 await Task.Delay(1);
 
-                string response = await claudeClient.sendMessage(text ?? "", currentScreenshotList);
+                string response = await claudeClient.sendMessage(text ?? "", currentScreenshotList.ToList<string>());
 
                 Messages.Add(new ChatMessage() { Role = "Assistant", Content = response });
 

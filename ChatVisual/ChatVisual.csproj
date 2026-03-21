@@ -114,6 +114,7 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Base64ToImageConverter.cs" />
     <Compile Include="ClaudeClient.cs" />
     <Compile Include="RawInputHook.cs" />
     <Compile Include="MainWindow.xaml.cs">
