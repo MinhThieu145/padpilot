@@ -69,35 +69,12 @@ namespace ChatVisual
         }
 
 
-        // handler for button "Send"
-        // we disable the button while the message are sent
+        /// <summary>
+        /// Handle the Send Message button click
+        /// </summary>
         private async void SendButton_Click(object sender, RoutedEventArgs e)
         {
-            string text = MessageInput.Text?.Trim();
-
-            if (string.IsNullOrWhiteSpace(text) && currentScreenshotList.Count == 0)
-                return;
-
-            SendMessageButton.IsEnabled = false;
-
-            try
-            {
-                Console.WriteLine(text);
-
-                Messages.Add(new ChatMessage() { Role = "User", Content = text ?? "" });
-                await Task.Delay(1);
-
-                string response = await claudeClient.sendMessage(text ?? "", currentScreenshotList);
-
-                Messages.Add(new ChatMessage() { Role = "Assistant", Content = response });
-
-                MessageInput.Text = "";
-                currentScreenshotList.Clear();
-            }
-            finally
-            {
-                SendMessageButton.IsEnabled = true;
-            }
+            sendMessageToClaude();
         }
 
 
@@ -191,6 +168,42 @@ namespace ChatVisual
             }
 
         }
+
+
+        /// <summary>
+        /// Send the current message to Claude Client 
+        /// </summary>
+        private async void sendMessageToClaude()
+        {
+            string text = MessageInput.Text?.Trim();
+
+            if (string.IsNullOrWhiteSpace(text) && currentScreenshotList.Count == 0)
+                return;
+
+            SendMessageButton.IsEnabled = false;
+
+            try
+            {
+                Console.WriteLine(text);
+
+                Messages.Add(new ChatMessage() { Role = "User", Content = text ?? "" });
+                await Task.Delay(1);
+
+                string response = await claudeClient.sendMessage(text ?? "", currentScreenshotList);
+
+                Messages.Add(new ChatMessage() { Role = "Assistant", Content = response });
+
+                MessageInput.Text = "";
+                currentScreenshotList.Clear();
+            }
+            finally
+            {
+                SendMessageButton.IsEnabled = true;
+            }
+
+        }
+
+
 
     }
 }
