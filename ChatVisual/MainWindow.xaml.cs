@@ -76,23 +76,6 @@ namespace ChatVisual
         }
 
 
-        /// <summary>
-        /// Handle the Send Message button click
-        /// </summary>
-        private async void SendButton_Click(object sender, RoutedEventArgs e)
-        {
-            sendMessageToClaude();
-        }
-
-
-        /// <summary>
-        /// Handle the Screenshot button click
-        /// </summary>
-        private void Screenshot_Click(object sender, RoutedEventArgs e)
-        {
-            TakeScreenshot();
-        }
-
         // =====================================================================
         // EVENT HANDLER
         // =====================================================================
@@ -187,8 +170,6 @@ namespace ChatVisual
             if (string.IsNullOrWhiteSpace(text) && currentScreenshotList.Count == 0)
                 return;
 
-            SendMessageButton.IsEnabled = false;
-
             try
             {
                 Console.WriteLine(text);
@@ -205,7 +186,7 @@ namespace ChatVisual
             }
             finally
             {
-                SendMessageButton.IsEnabled = true;
+                Console.WriteLine("Encounter errors send message to Claude");
             }
 
         }

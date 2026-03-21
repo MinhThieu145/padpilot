@@ -146,13 +146,9 @@
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"></ColumnDefinition>
-                <ColumnDefinition Width="60"></ColumnDefinition>
-                <ColumnDefinition Width="Auto"></ColumnDefinition>
             </Grid.ColumnDefinitions>
 
             <TextBox x:Name="MessageInput" Grid.Column="0" Background="#401a1a1a"   ></TextBox>
-            <Button x:Name="SendMessageButton" Grid.Column="1" Content="Send" Click="SendButton_Click" Background="#401a1a1a" Foreground="White"></Button>
-            <Button Grid.Column="2" Content="Screenshot" Click="Screenshot_Click" Padding="3" Background="#401a1a1a" Foreground="White" ></Button>
             
         </Grid>
         
