@@ -106,7 +106,7 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <Image  Height="40"
-                            Margin="2,2,2,2"
+                            Margin="4,2,2,2"
                             Source="{Binding Converter={StaticResource Base64ToImageConverter}}" />
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
