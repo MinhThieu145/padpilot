@@ -60,7 +60,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border CornerRadius="3" Background="#555555"/>
+                        <Border CornerRadius="3" Background="#555555" Width="4"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
