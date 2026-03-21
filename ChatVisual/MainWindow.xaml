@@ -116,9 +116,11 @@
         
         <ListBox Grid.Row="1" x:Name="ChatHistory" 
                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 ScrollViewer.HorizontalScrollBarVisibility="Hidden"
                  Background="#401a1a1a" 
                  HorizontalContentAlignment="Stretch" 
                  ScrollViewer.CanContentScroll="False">
+            
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <Border CornerRadius="4" Padding="8" Width="530">
