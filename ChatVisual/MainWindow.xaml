@@ -9,11 +9,14 @@
         
         Loaded="Window_Loaded"
         Closed="Window_Closed"
-        
+                
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="550" 
         AllowsTransparency="True" WindowStyle="None" Background="Transparent"
         >
+
+        <!--Set this to below the Closed="Window_Closed" to make the app always visible on top -->
+        <!--Topmost="True"-->
 
     <Window.Resources>
         <Style TargetType="TextBox">
