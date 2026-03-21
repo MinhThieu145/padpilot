@@ -57,6 +57,8 @@ namespace ChatVisual
             rawInputHook.RegisterMacroKeyAction(113, MoveWindowDown);
             rawInputHook.RegisterMacroKeyAction(114, MoveWindowLeft);
             rawInputHook.RegisterMacroKeyAction(115, MoveWindowRight);
+            rawInputHook.RegisterMacroKeyAction(116, TakeScreenshot);
+            rawInputHook.RegisterMacroKeyAction(117, sendMessageToClaude);
 
 
         }
