@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Interop;
 using static ChatVisual.RawInputHook;
 
 
@@ -16,6 +17,9 @@ namespace ChatVisual
     /// </summary>
     public partial class MainWindow : Window
     {
+        // To make the app invisible for screen sharing and screenshot tools
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint dwAffinity);
 
 
         // declare claude client
@@ -56,6 +60,10 @@ namespace ChatVisual
         {
             // we declare the rawInputHook here since we need its handle 
             rawInputHook = new RawInputHook(this);
+
+            // set the Display Affinity to make the window invisible to screen sharing tool
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            SetWindowDisplayAffinity(hwnd, 0x00000011);
 
             // we register the raw input for keyboard
             rawInputHook.RegisterMacroKeyAction(112, MoveWindowUp);
