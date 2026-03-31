@@ -23,9 +23,9 @@ namespace ChatVisual
 
 
         // declare Agent client
-        private ClaudeClient claudeClient;
-        private OpenAIWrapper openAIWrapper;
-        private ModeOrchestrator modeOrchestrator;
+        private ClaudeClient _claudeClient;
+        private OpenAIWrapper _openAIWrapper;
+        private ModeOrchestrator _modeOrchestrator;
 
         private RawInputHook rawInputHook;
 
@@ -40,14 +40,13 @@ namespace ChatVisual
             InitializeComponent();
 
             // claude client
-            claudeClient = new ClaudeClient();
+            _claudeClient = new ClaudeClient();
 
             // openAI client
-            openAIWrapper = new OpenAIWrapper();
+            _openAIWrapper = new OpenAIWrapper();
 
             // orchestrator for the ai agents
-            modeOrchestrator = new ModeOrchestrator();
-
+            _modeOrchestrator = new ModeOrchestrator();
 
             // intitialize the messages
             Messages = new ObservableCollection<ConversationMessage>();
@@ -56,6 +55,11 @@ namespace ChatVisual
             // set the source for the ScreenshotHistory (to link between the xaml UI and the currentScreenshotList)
             ScreenshotHistory.ItemsSource = currentScreenshotList;
 
+            // if the Orchestrator shout Mode Changed... then we have to clear the Messages List so that the UI in sync with the AI agen Chat History
+            _modeOrchestrator.OnModeChange += () =>
+            {
+                Messages.Clear();
+            };
 
             // Confirm if this is 64 bit or 32 bit process, and the size of the RawInputHeader struct
             Console.WriteLine($"IntPtr.Size = {IntPtr.Size}");
@@ -83,6 +87,8 @@ namespace ChatVisual
             rawInputHook.RegisterMacroKeyAction(116, TakeScreenshot);
             rawInputHook.RegisterMacroKeyAction(117, sendMessageToClaude);
 
+            // temporary key for mode change
+            rawInputHook.RegisterMacroKeyAction(118, _modeOrchestrator.CycleThroughMode);
 
         }
 
@@ -195,8 +201,8 @@ namespace ChatVisual
                 Messages.Add(new ConversationMessage() { Role = "User", Content = text ?? "" });
                 await Task.Delay(1);
 
-                // string response = await claudeClient.sendMessage(text ?? "", currentScreenshotList.ToList<string>());
-                string response = await modeOrchestrator.GetResponseAsync(text ?? "", currentScreenshotList.ToList<string>());
+                // string response = await _claudeClient.sendMessage(text ?? "", currentScreenshotList.ToList<string>());
+                string response = await _modeOrchestrator.GetResponseAsync(text ?? "", currentScreenshotList.ToList<string>());
 
                 Messages.Add(new ConversationMessage() { Role = "Assistant", Content = response });
 
