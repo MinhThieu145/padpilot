@@ -145,6 +145,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="AIRequestConfig.cs" />
     <Compile Include="ModeOrchestrator.cs" />
     <Compile Include="ResponseMode.cs" />
     <Page Include="MainWindow.xaml">
