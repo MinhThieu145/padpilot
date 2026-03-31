@@ -29,7 +29,7 @@ namespace ChatVisual
         private ObservableCollection<string> currentScreenshotList = new ObservableCollection<string>();
 
         // this is a special class that act similar to react hook, it's notify UI when change
-        ObservableCollection<ChatMessage> Messages;
+        ObservableCollection<ConversationMessage> Messages;
 
         public MainWindow()
         {
@@ -40,7 +40,7 @@ namespace ChatVisual
 
 
             // intitialize the messages
-            Messages = new ObservableCollection<ChatMessage>();
+            Messages = new ObservableCollection<ConversationMessage>();
             ChatHistory.ItemsSource = Messages;
 
             // set the source for the ScreenshotHistory (to link between the xaml UI and the currentScreenshotList)
@@ -182,12 +182,12 @@ namespace ChatVisual
             {
                 Console.WriteLine(text);
 
-                Messages.Add(new ChatMessage() { Role = "User", Content = text ?? "" });
+                Messages.Add(new ConversationMessage() { Role = "User", Content = text ?? "" });
                 await Task.Delay(1);
 
                 string response = await claudeClient.sendMessage(text ?? "", currentScreenshotList.ToList<string>());
 
-                Messages.Add(new ChatMessage() { Role = "Assistant", Content = response });
+                Messages.Add(new ConversationMessage() { Role = "Assistant", Content = response });
 
                 MessageInput.Text = "";
                 currentScreenshotList.Clear();

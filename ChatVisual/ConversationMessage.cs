@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ChatVisual
 {
-    internal class ChatMessage
+    internal class ConversationMessage
     {
         public string Content { get; set; }
         public string Role { get; set; }
