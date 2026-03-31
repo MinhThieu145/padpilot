@@ -25,18 +25,27 @@ namespace ChatVisual
         private List<ChatMessage> _chatHistory;
 
         // OpenAI Client and Options
+        private ChatClient _miniClient;
+        private ChatClient _fullClient;
         private ChatClient _client;
         private ChatCompletionOptions _options;
+
+        // system prompt
+        private string _activeSystemPrompt;
 
 
 
         // Constructor for the OpenAIClient
         public OpenAIWrapper()
         {
-            _client = new ChatClient("gpt-5.4-mini", Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
+            _miniClient = new ChatClient("gpt-5.4-mini", apiKey);
+            _fullClient = new ChatClient("gpt-5.4", apiKey);
+            _client = _miniClient; // default to mini client, we can change it later based on the request config
+
+            _activeSystemPrompt = null; // default to no system prompt, we can set it later based on the request config
             _chatHistory = new List<ChatMessage>();
 
-            // model parameter
+            // default model parameters
             _options = new ChatCompletionOptions()
             {
                 MaxOutputTokenCount = 1024
@@ -45,8 +54,29 @@ namespace ChatVisual
         }
 
         // Async method to send message to OpenAI and get response
-        public async Task<string> sendMessage(string message, List<string> screenshots)
+        public async Task<string> sendMessage(string message, List<string> screenshots, AIRequestConfig requestConfig)
         {
+
+            // update the configration for model request
+            _options = new ChatCompletionOptions()
+            {
+                Temperature = requestConfig.Temperature,
+                MaxOutputTokenCount = requestConfig.MaxOutputToken,
+            };
+            
+            // set the configs that not in _options 
+            _client = requestConfig.Model == "gpt-5.4" ? _fullClient : _miniClient;
+
+            // update the system prompt too. But a change in system prompt mean we would have to clear the chat history 
+            if (requestConfig.SystemPrompt != _activeSystemPrompt)
+            {
+                _activeSystemPrompt = requestConfig.SystemPrompt;
+                // clear the chat history and add the new system prompt
+                _chatHistory.Clear();
+                _chatHistory.Add(new SystemChatMessage(_activeSystemPrompt));
+            }
+
+
             if (screenshots.Count == 0)
             {
                 Console.WriteLine("Message sent without screenshot");
@@ -109,6 +139,16 @@ namespace ChatVisual
         // =====================================================================
         // UTILITIES
         // =====================================================================
+
+        /// <summary>
+        /// Handle the session cleaning process. Will remove the entire chat history and system prompt
+        /// </summary>
+        public void SessionCleaning()
+        {
+            _chatHistory.Clear();
+            _activeSystemPrompt = null;
+        }
+
         private BinaryData convertBase64ToBinaryData(string base64)
         {
             byte[] bytes = Convert.FromBase64String(base64);
