@@ -22,11 +22,15 @@ namespace ChatVisual
         private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint dwAffinity);
 
 
-        // declare claude client
+        // declare Agent client
         private ClaudeClient claudeClient;
+        private OpenAIWrapper openAIWrapper;
+        private ModeOrchestrator modeOrchestrator;
+
         private RawInputHook rawInputHook;
 
         private ObservableCollection<string> currentScreenshotList = new ObservableCollection<string>();
+
 
         // this is a special class that act similar to react hook, it's notify UI when change
         ObservableCollection<ConversationMessage> Messages;
@@ -37,6 +41,12 @@ namespace ChatVisual
 
             // claude client
             claudeClient = new ClaudeClient();
+
+            // openAI client
+            openAIWrapper = new OpenAIWrapper();
+
+            // orchestrator for the ai agents
+            modeOrchestrator = new ModeOrchestrator();
 
 
             // intitialize the messages
@@ -185,7 +195,8 @@ namespace ChatVisual
                 Messages.Add(new ConversationMessage() { Role = "User", Content = text ?? "" });
                 await Task.Delay(1);
 
-                string response = await claudeClient.sendMessage(text ?? "", currentScreenshotList.ToList<string>());
+                // string response = await claudeClient.sendMessage(text ?? "", currentScreenshotList.ToList<string>());
+                string response = await modeOrchestrator.GetResponseAsync(text ?? "", currentScreenshotList.ToList<string>());
 
                 Messages.Add(new ConversationMessage() { Role = "Assistant", Content = response });
 
