@@ -155,7 +155,7 @@
     </Compile>
     <Compile Include="Base64ToImageConverter.cs" />
     <Compile Include="ClaudeClient.cs" />
-    <Compile Include="OpenAIClient.cs" />
+    <Compile Include="OpenAIWrapper.cs" />
     <Compile Include="RawInputHook.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
