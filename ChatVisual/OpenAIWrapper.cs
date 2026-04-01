@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-
-
-
-// OpenAI _client import
+﻿// OpenAI _client import
 using OpenAI.Chat;
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 
@@ -54,8 +51,11 @@ namespace ChatVisual
         }
 
         // Async method to send message to OpenAI and get response
-        public async Task<string> sendMessage(string message, List<string> screenshots, AIRequestConfig requestConfig)
+        public async Task<string> sendMessage(List<SharedMessage> sharedChatHistory, AIRequestConfig requestConfig)
         {
+
+            // PERFORMANCE CONSIDERATION: at the moment we clear and populate entire chat histor for each request
+            _chatHistory.Clear();
 
             // update the configration for model request
             _options = new ChatCompletionOptions()
@@ -63,52 +63,46 @@ namespace ChatVisual
                 Temperature = requestConfig.Temperature,
                 MaxOutputTokenCount = requestConfig.MaxOutputToken,
             };
-            
+
             // set the configs that not in _options 
             _client = requestConfig.Model == "gpt-5.4" ? _fullClient : _miniClient;
 
-            // update the system prompt too. But a change in system prompt mean we would have to clear the chat history 
-            if (requestConfig.SystemPrompt != _activeSystemPrompt)
-            {
-                _activeSystemPrompt = requestConfig.SystemPrompt;
-                // clear the chat history and add the new system prompt
-                _chatHistory.Clear();
-                _chatHistory.Add(new SystemChatMessage(_activeSystemPrompt));
-            }
+
+            _activeSystemPrompt = requestConfig.SystemPrompt;
+            _chatHistory.Add(new SystemChatMessage(_activeSystemPrompt));
 
 
-            if (screenshots.Count == 0)
+            // the sharedChatHistory has completely different fromat from the List<ChatMessageContentPart> that OpenAI use
+            // we need to do conversion
+            foreach (SharedMessage sharedMessage in sharedChatHistory)
             {
-                Console.WriteLine("Message sent without screenshot");
-                _chatHistory.Add(new UserChatMessage(ChatMessageContentPart.CreateTextPart(message)));
-            }
-            else
-            {
-                Console.WriteLine($"Message sent with {screenshots.Count} screenshots");
 
                 List<ChatMessageContentPart> contentParts = new List<ChatMessageContentPart>();
+                contentParts.Add(ChatMessageContentPart.CreateTextPart(sharedMessage.Message));
 
-                // add all the screenshots and the text message to contentParts
-                contentParts.Add(ChatMessageContentPart.CreateTextPart(message));
-
-                foreach (string screenshot in screenshots)
+                foreach (byte[] screenshot in sharedMessage.Screenshots)
                 {
-                    // convert back from base64 to binary data
-                    BinaryData imageBinaryData = convertBase64ToBinaryData(screenshot);
-
-                    contentParts.Add(ChatMessageContentPart.CreateImagePart(imageBinaryData, "image/png"));
-
+                    // we have to wrap the byte array into BinaryData because that's the format that OpenAI use for image input
+                    BinaryData imageContentPart = BinaryData.FromBytes(screenshot);
+                    contentParts.Add(ChatMessageContentPart.CreateImagePart(imageContentPart, "image/png"));
                 }
 
 
-                // the current contentPart contains a list of binary data of screenshot and a text message.
-                _chatHistory.Add(new UserChatMessage(contentParts));
-
+                switch (sharedMessage.Role)
+                {
+                    case ChatMessageRole.User:
+                        _chatHistory.Add(new UserChatMessage(contentParts));
+                        break;
+                    case ChatMessageRole.Assistant:
+                        _chatHistory.Add(new AssistantChatMessage(contentParts));
+                        break;
+                    default:
+                        throw new InvalidOperationException("Invalid chat message role: " + sharedMessage.Role);
+                }
 
             }
 
-
-            // OpenAI handle the _chatHistory (pass entire array, OpenAI handle the caching on their backend)
+            // Retries logic (we try again 3 times with 1000ms delay between trial)
             int maxRetries = 3;
             for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
@@ -118,11 +112,11 @@ namespace ChatVisual
                     ChatCompletion chatCompletion = await _client.CompleteChatAsync(_chatHistory, _options);
                     var assistantMessage = chatCompletion.Content[0].Text;
 
-                    _chatHistory.Add(new AssistantChatMessage(ChatMessageContentPart.CreateTextPart(assistantMessage)));
                     return assistantMessage;
 
 
-                } catch (Exception ex)
+                }
+                catch (Exception ex)
                 {
                     Console.WriteLine($"Attempt {attempt} failed: {ex.Message}");
                     if (attempt == maxRetries) return "Error: " + ex.Message;
