@@ -346,8 +346,6 @@ namespace ChatVisual
                 // we check if the key is a macro key (F1 - F9) and if the timestamp is within 15ms of the last macro key event
                 long now = Environment.TickCount;
 
-                Console.WriteLine("Low Level Hook got event! This is the data:");
-
                 // Now we read from the lParam to get the actual key info (which key is it, etc)
                 KBDLLHOOKSTRUCT kbdStruct = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
 
