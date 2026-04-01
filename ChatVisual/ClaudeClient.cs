@@ -13,7 +13,7 @@ namespace ChatVisual
     internal class ClaudeClient
     {
         private static readonly string apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") ?? throw new InvalidOperationException("ANTHROPIC_API_KEY is not set.");
-        private List<Message> _messageHistory;
+        private List<Message> _chatHistory;
 
         // model parameter
         private MessageParameters _modelParams;
@@ -26,12 +26,12 @@ namespace ChatVisual
         {
             // then we need to initialize the AnthropicClient
             client = new AnthropicClient(apiKey);
-            _messageHistory = new List<Message>();
+            _chatHistory = new List<Message>();
 
             // model paramter
             _modelParams = new MessageParameters()
             {
-                Messages = _messageHistory,
+                Messages = _chatHistory,
                 MaxTokens = 1024,
                 Model = AnthropicModels.Claude46Sonnet,
                 Stream = false
@@ -41,64 +41,51 @@ namespace ChatVisual
 
         // then we build the async sendMessage method
         // the method would return string
-        public async Task<string> sendMessage(string message, List<String> screenShots, AIRequestConfig requestConfig)
+        public async Task<string> sendMessage(List<SharedMessage> sharedChatHistory, AIRequestConfig requestConfig)
         {
+            // PERFORMANCE CONSIDERATION: at the moment we clear and populate entire chat histor for each request
+            _chatHistory.Clear();
+
+            foreach (SharedMessage sharedMessage in sharedChatHistory)
+            {
+                // adding the text and image to contentbase
+                var contentParts = new List<ContentBase>();
+                contentParts.Add(new TextContent() { Text = sharedMessage.Message });
+
+                foreach (byte[] screenshot in sharedMessage.Screenshots)
+                {
+                    contentParts.Add(new ImageContent()
+                    {
+                        Source = new ImageSource()
+                        {
+                            MediaType = "image/png",
+                            Data = Convert.ToBase64String(screenshot)
+                        }
+                    });
+                }
+
+                // now add the role and finish a message
+                _chatHistory.Add(new Message()
+                {
+                    Role = sharedMessage.Role == ChatMessageRole.User ? RoleType.User : RoleType.Assistant,
+                    Content = contentParts
+                });
+
+
+            }
+
+
             _modelParams = new MessageParameters()
             {
-                Messages = _messageHistory,
+                Messages = _chatHistory,
                 MaxTokens = requestConfig.MaxOutputToken,
                 Temperature = (decimal)requestConfig.Temperature,
                 Model = requestConfig.Model,
-                System = new List<SystemMessage> { new SystemMessage(requestConfig.SystemPrompt)},
+                System = new List<SystemMessage> { new SystemMessage(requestConfig.SystemPrompt) },
                 Stream = false
             };
 
-            // we add our current message to our _messageHistory list
-            if (screenShots.Count == 0)
-            {
-                Console.WriteLine("Message sent without screenshot");
-                _messageHistory.Add(new Message(RoleType.User, message));
 
-            }
-            else
-            {
-                Console.WriteLine("Message sent with screenshot");
-
-                List<ContentBase> contentBases = new List<ContentBase>();
-
-                // add all the screenshots to Content
-                foreach (string screenShot in screenShots)
-                {
-                    contentBases.Add(
-
-                        new ImageContent()
-                        {
-                            Source = new ImageSource()
-                            {
-                                MediaType = "image/png",
-                                Data = screenShot
-                            }
-                        }
-
-                    );
-                }
-
-                // add the text message to content
-                contentBases.Add(
-
-                    new TextContent()
-                    {
-                        Text = message,
-                    }
-
-                );
-
-                _messageHistory.Add(new Message()
-                {
-                    Role = RoleType.User,
-                    Content = contentBases
-                });
-            }
 
             // then we can simply call the api from the client
             int maxRetries = 3;
@@ -107,15 +94,7 @@ namespace ChatVisual
             {
                 try
                 {
-
-                    //if (attempt < 2)
-                    //{
-                    //    throw new System.Net.Http.HttpRequestException("Overloaded");
-                    //}
-
                     var result = await client.Messages.GetClaudeMessageAsync(_modelParams);
-                    // add the claude answer to message history too
-                    _messageHistory.Add(new Message(RoleType.Assistant, result.Message.ToString()));
                     return result.Message.ToString();
 
                 }
@@ -128,17 +107,14 @@ namespace ChatVisual
                         await Task.Delay(1000);
                         continue;
                     }
-
-                    return "Claude is currently overloaded. Please try again later.";
                 }
                 catch (Exception ex)
                 {
-                    return "An unexpected error occurred: " + ex.Message;
+                    throw new Exception("Claude failed after all retries", ex);
                 }
 
             }
-            return "Oopsie daisies the C# is really a dummy";
-
+            throw new Exception("Claude failed after all retries");
 
         }
 
@@ -148,7 +124,7 @@ namespace ChatVisual
         // =====================================================================
         public void SessionCleaning()
         {
-            _messageHistory.Clear();
+            _chatHistory.Clear();
 
         }
     }
