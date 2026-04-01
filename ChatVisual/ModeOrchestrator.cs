@@ -26,7 +26,7 @@ namespace ChatVisual
             Model = "gpt-5.4-mini",
             Temperature = 0.2f,
             MaxOutputToken = 1024,
-            SystemPrompt = ""
+            SystemPrompt = "You are a concise coding assistant. Give short, direct answers. No fluff."
         };
 
         /// <summary>
@@ -61,7 +61,7 @@ namespace ChatVisual
             Model = "claude-sonnet-4-6",
             Temperature = 0.2f,
             MaxOutputToken = 2048,
-            SystemPrompt = ""
+            SystemPrompt = "You are an expert coding tutor helping a developer understand programming problems. \r\nExplain concepts clearly. When shown code or a problem, break down what's happening \r\nand guide toward the solution without giving it away directly."
 
         };
 
@@ -84,6 +84,7 @@ namespace ChatVisual
             OnModeChange += () =>
             {
                 _openAIWrapper.SessionCleaning();
+                _claudeClient.SessionCleaning();
             };
 
         }
@@ -139,12 +140,12 @@ namespace ChatVisual
 
                 case ResponseMode.Thinking:
                     // we would do a more complex call, maybe with more context or a different model
-                    chatResponse = await _claudeClient.sendMessage(messageText, messageScreenshots);
+                    chatResponse = await _claudeClient.sendMessage(messageText, messageScreenshots, _reasoningResponseClaudeConfig);
                     break;
 
                 case ResponseMode.DeepThinking:
                     // we would do the most complex call, maybe with even more context or a more powerful model
-                    chatResponse = await _claudeClient.sendMessage(messageText, messageScreenshots);
+                    chatResponse = await _claudeClient.sendMessage(messageText, messageScreenshots, _reasoningResponseClaudeConfig);
                     break;
 
                 default:
