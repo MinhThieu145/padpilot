@@ -146,8 +146,10 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="AIRequestConfig.cs" />
+    <Compile Include="ChatMessageRole.cs" />
     <Compile Include="ModeOrchestrator.cs" />
     <Compile Include="ResponseMode.cs" />
+    <Compile Include="SharedMessage.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
