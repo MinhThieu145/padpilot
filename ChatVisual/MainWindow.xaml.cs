@@ -85,7 +85,7 @@ namespace ChatVisual
             rawInputHook.RegisterMacroKeyAction(114, MoveWindowLeft);
             rawInputHook.RegisterMacroKeyAction(115, MoveWindowRight);
             rawInputHook.RegisterMacroKeyAction(116, TakeScreenshot);
-            rawInputHook.RegisterMacroKeyAction(117, sendMessageToClaude);
+            rawInputHook.RegisterMacroKeyAction(117, sendMessageToOrchestrator);
 
             // temporary key for mode change
             rawInputHook.RegisterMacroKeyAction(118, _modeOrchestrator.CycleThroughMode);
@@ -187,7 +187,7 @@ namespace ChatVisual
         /// <summary>
         /// Send the current message to Claude Client 
         /// </summary>
-        private async void sendMessageToClaude()
+        private async void sendMessageToOrchestrator()
         {
             string text = MessageInput.Text?.Trim();
 
@@ -209,14 +209,13 @@ namespace ChatVisual
                 MessageInput.Text = "";
                 currentScreenshotList.Clear();
             }
-            finally
+            catch (Exception ex)
             {
-                Console.WriteLine("Encounter errors send message to Claude");
+                Console.WriteLine($"Error sending message from the Main Window to Orchestrator. Error Message: {ex.Message}");
+                Messages.Add(new ConversationMessage() { Role = "Assistant", Content = "Something went wrong pls try again" });
             }
 
         }
-
-
 
     }
 }
