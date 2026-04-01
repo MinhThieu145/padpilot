@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-// Claude client specific
+﻿// Claude client specific
 using Anthropic.SDK;
 using Anthropic.SDK.Constants;
 using Anthropic.SDK.Messaging;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 
 
@@ -16,10 +13,10 @@ namespace ChatVisual
     internal class ClaudeClient
     {
         private static readonly string apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") ?? throw new InvalidOperationException("ANTHROPIC_API_KEY is not set.");
-        private List<Message> messageHistory;
+        private List<Message> _messageHistory;
 
         // model parameter
-        private MessageParameters modelParams;
+        private MessageParameters _modelParams;
 
         // initialize the client
         AnthropicClient client;
@@ -29,12 +26,12 @@ namespace ChatVisual
         {
             // then we need to initialize the AnthropicClient
             client = new AnthropicClient(apiKey);
-            messageHistory = new List<Message>();
+            _messageHistory = new List<Message>();
 
             // model paramter
-            modelParams = new MessageParameters()
+            _modelParams = new MessageParameters()
             {
-                Messages = messageHistory,
+                Messages = _messageHistory,
                 MaxTokens = 1024,
                 Model = AnthropicModels.Claude46Sonnet,
                 Stream = false
@@ -44,17 +41,26 @@ namespace ChatVisual
 
         // then we build the async sendMessage method
         // the method would return string
-        public async Task<string> sendMessage(string message, List<String> screenShots)
+        public async Task<string> sendMessage(string message, List<String> screenShots, AIRequestConfig requestConfig)
         {
-            Console.WriteLine("Message Send: ", message);
+            _modelParams = new MessageParameters()
+            {
+                Messages = _messageHistory,
+                MaxTokens = requestConfig.MaxOutputToken,
+                Temperature = (decimal)requestConfig.Temperature,
+                Model = requestConfig.Model,
+                System = new List<SystemMessage> { new SystemMessage(requestConfig.SystemPrompt)},
+                Stream = false
+            };
 
-            // we add our current message to our messageHistory list
+            // we add our current message to our _messageHistory list
             if (screenShots.Count == 0)
             {
                 Console.WriteLine("Message sent without screenshot");
-                messageHistory.Add(new Message(RoleType.User, message));
+                _messageHistory.Add(new Message(RoleType.User, message));
 
-            } else
+            }
+            else
             {
                 Console.WriteLine("Message sent with screenshot");
 
@@ -64,7 +70,7 @@ namespace ChatVisual
                 foreach (string screenShot in screenShots)
                 {
                     contentBases.Add(
-                        
+
                         new ImageContent()
                         {
                             Source = new ImageSource()
@@ -84,10 +90,10 @@ namespace ChatVisual
                     {
                         Text = message,
                     }
-                
+
                 );
 
-                messageHistory.Add(new Message()
+                _messageHistory.Add(new Message()
                 {
                     Role = RoleType.User,
                     Content = contentBases
@@ -107,9 +113,9 @@ namespace ChatVisual
                     //    throw new System.Net.Http.HttpRequestException("Overloaded");
                     //}
 
-                    var result = await client.Messages.GetClaudeMessageAsync(modelParams);
+                    var result = await client.Messages.GetClaudeMessageAsync(_modelParams);
                     // add the claude answer to message history too
-                    messageHistory.Add(new Message(RoleType.Assistant, result.Message.ToString()));
+                    _messageHistory.Add(new Message(RoleType.Assistant, result.Message.ToString()));
                     return result.Message.ToString();
 
                 }
@@ -136,5 +142,14 @@ namespace ChatVisual
 
         }
 
+
+        // =====================================================================
+        // UTILITIES
+        // =====================================================================
+        public void SessionCleaning()
+        {
+            _messageHistory.Clear();
+
+        }
     }
 }
