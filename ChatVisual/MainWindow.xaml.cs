@@ -1,8 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
@@ -211,7 +211,15 @@ namespace ChatVisual
                 await Task.Delay(1);
 
                 // string response = await _claudeClient.sendMessage(text ?? "", currentScreenshotList.ToList<string>());
-                string response = await _modeOrchestrator.GetResponseAsync(text ?? "", currentScreenshotList.ToList<string>());
+
+                // the shared history take the screenshot list as a list of binary data. Need converstion here
+                List<byte[]> screenshots = new List<byte[]>();
+                foreach (string  screenshot in currentScreenshotList)
+                {
+                    screenshots.Add(Convert.FromBase64String(screenshot));
+                }
+
+                string response = await _modeOrchestrator.GetResponseAsync(text ?? "", screenshots);
 
                 Messages.Add(new ConversationMessage() { Role = "Assistant", Content = response });
 
