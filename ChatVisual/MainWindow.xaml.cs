@@ -145,10 +145,14 @@ namespace ChatVisual
         {
             Console.WriteLine("Screenshot taken");
 
-            // the image bitmap
-            int width = (int)SystemParameters.PrimaryScreenWidth;
-            int height = (int)SystemParameters.PrimaryScreenHeight;
+            // get DPI scale factor from WPF
+            PresentationSource source = PresentationSource.FromVisual(this);
+            double dpiScale = source.CompositionTarget.TransformToDevice.M11;
 
+            // physical screen size
+            int width = (int)(SystemParameters.PrimaryScreenWidth * dpiScale);
+            int height = (int)(SystemParameters.PrimaryScreenHeight * dpiScale);
+            
             using (Bitmap myBitmap = new Bitmap(width, height))
             {
                 using (Graphics g = Graphics.FromImage(myBitmap))
@@ -158,7 +162,12 @@ namespace ChatVisual
                     new System.Drawing.Size(width, height)
                     );
 
-                    // myBitmap.Save("screenshot.png");
+                    /*
+                     * Loggin the screenshot
+                    Directory.CreateDirectory("screenshots");
+                    string fileName = $"screenshots/screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png";
+                    myBitmap.Save(fileName);
+                    */
                 }
 
 
