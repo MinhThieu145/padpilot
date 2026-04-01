@@ -15,6 +15,11 @@ namespace ChatVisual
         // our events to signify if the thinking mode has changed
         public event Action OnModeChange;
 
+        /// <summary>
+        /// The shared chat history that AI agents rely on. This shared history help we switch between agents without losing context
+        /// </summary>
+        public List<SharedMessage> _sharedChatHistory;
+
 
         // AI agent parameters presets
 
@@ -80,6 +85,9 @@ namespace ChatVisual
             // default mode
             _mode = ResponseMode.Quick;
 
+            // the shared chat history
+            _sharedChatHistory = new List<SharedMessage>();
+
             // event shout Mode Change.... we would clean the session
             OnModeChange += () =>
             {
@@ -105,7 +113,7 @@ namespace ChatVisual
         /// </summary>
         public void CycleThroughMode()
         {
-            switch ( _mode )
+            switch (_mode)
             {
                 case ResponseMode.Quick:
                     _mode = ResponseMode.Thinking;
@@ -128,33 +136,65 @@ namespace ChatVisual
         /// <summary>
         /// Handle the orchestration process to generate response from different agents
         /// </summary>
-        public async Task<string> GetResponseAsync(string messageText, List<string> messageScreenshots)
+        public async Task<string> GetResponseAsync(string messageText, List<byte[]> messageScreenshots)
         {
+
+            _sharedChatHistory.Add(new SharedMessage()
+            {
+                Role = ChatMessageRole.User,
+                Message = messageText,
+                Screenshots = messageScreenshots
+            });
+
             string chatResponse = string.Empty;
             switch (_mode)
             {
                 case ResponseMode.Quick:
                     // we would simply do a quick call
-                    chatResponse = await _openAIWrapper.sendMessage(messageText, messageScreenshots, _lightweightResponseOpenAIConfig);
+                    chatResponse = await _openAIWrapper.sendMessage(_sharedChatHistory, _lightweightResponseOpenAIConfig);
                     break;
 
                 case ResponseMode.Thinking:
                     // we would do a more complex call, maybe with more context or a different model
-                    chatResponse = await _claudeClient.sendMessage(messageText, messageScreenshots, _reasoningResponseClaudeConfig);
+                    try
+                    {
+                        chatResponse = await _claudeClient.sendMessage(_sharedChatHistory, _reasoningResponseClaudeConfig);
+                    } catch
+                    {
+                        // we try again but now with the OpenAI as a backup plan
+                        Console.WriteLine("[ModeOrchestrator] Claude call failed, falling back to OpenAI for Thinking mode.");
+                        chatResponse = await _openAIWrapper.sendMessage(_sharedChatHistory, _reasoningResponseOpenAIConfig);
+                    }
                     break;
 
                 case ResponseMode.DeepThinking:
                     // we would do the most complex call, maybe with even more context or a more powerful model
-                    chatResponse = await _claudeClient.sendMessage(messageText, messageScreenshots, _reasoningResponseClaudeConfig);
+                    try
+                    {
+                        chatResponse = await _claudeClient.sendMessage(_sharedChatHistory, _reasoningResponseClaudeConfig);
+                    }
+                    catch
+                    {
+                        // we try again but now with the OpenAI as a backup plan
+                        Console.WriteLine("[ModeOrchestrator] Claude call failed, falling back to OpenAI for Thinking mode.");
+                        chatResponse = await _openAIWrapper.sendMessage(_sharedChatHistory, _reasoningResponseOpenAIConfig);
+                    }
                     break;
 
                 default:
                     // fail safe. This should not happen
                     throw new InvalidOperationException("Unknown response mode");
-
             }
 
+            // done with the response, we add the assistant to our chat history
+            _sharedChatHistory.Add(new SharedMessage()
+            {
+                Role = ChatMessageRole.Assistant,
+                Message = chatResponse,
+                Screenshots = new List<byte[]>()
+            });
 
+            // this response answer to the MainWindow, which know nothing of our chathistory other than the response we give back
             return chatResponse;
         }
 
