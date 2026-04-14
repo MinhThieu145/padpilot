@@ -6,7 +6,9 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
 using static ChatVisual.RawInputHook;
 
 
@@ -94,6 +96,11 @@ namespace ChatVisual
 
             // temporary key for mode change
             rawInputHook.RegisterMacroKeyAction(118, _modeOrchestrator.CycleThroughMode);
+
+            rawInputHook.RegisterMacroKeyAction(119, ScrollChatUp);
+            rawInputHook.RegisterMacroKeyAction(120, ScrollChatDown);
+
+            rawInputHook.RegisterMacroKeyAction(121, ClearSession);
 
         }
 
@@ -237,6 +244,36 @@ namespace ChatVisual
                 Messages.Add(new ConversationMessage() { Role = "Assistant", Content = "Something went wrong pls try again" });
             }
 
+        }
+
+        private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match) return match;
+                var result = FindVisualChild<T>(child);
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        private void ScrollChatUp()
+        {
+            var sv = FindVisualChild<ScrollViewer>(ChatHistory);
+            sv?.LineUp();
+        }
+
+        private void ScrollChatDown()
+        {
+            var sv = FindVisualChild<ScrollViewer>(ChatHistory);
+            sv?.LineDown();
+        }
+
+        private void ClearSession()
+        {
+            _modeOrchestrator.ClearHistory();
+            Messages.Clear();
         }
 
     }
