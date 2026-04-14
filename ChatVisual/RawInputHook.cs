@@ -26,11 +26,11 @@ namespace ChatVisual
     /// └─────────────────────────────────────────────────────────────────┘
     ///
     /// FLOW PER KEYPRESS
-    ///   1. Physical key pressed on macro keypad (F1–F9)
+    ///   1. Physical key pressed on macro keypad (F1–F10)
     ///   2. HandleRawInput()         → WM_INPUT arrives via HwndSource hook
     ///                                 Checks if key came from _targetDeviceHandle
     ///   3. LowLevelKeyboardFilter() → fires for every key system-wide
-    ///                                 Swallows F1–F9 if the event is NOT injected
+    ///                                 Swallows F1–F10 if the event is NOT injected
     ///   4. If key came from a regular keyboard:
     ///                                 InjectKeyboardEvent() re-fires it so the
     ///                                 rest of the system still sees it normally
@@ -288,7 +288,7 @@ namespace ChatVisual
         /// <summary>
         /// Installs a global low-level keyboard hook (WH_KEYBOARD_LL).
         /// This hook fires for every keystroke in the system, in every application.
-        /// Our callback (LowLevelKeyboardFilter) uses it to swallow F1–F9.
+        /// Our callback (LowLevelKeyboardFilter) uses it to swallow F1–F10.
         /// </summary>
         private bool InstallLowLevelKeyboardHook()
         {
@@ -343,7 +343,7 @@ namespace ChatVisual
                 // because RawInput happen before the LowLevel Hook, it a macro was press down about 15ms before it reach here: it's very likely (like 99.999%) that key is the macro key
 
 
-                // we check if the key is a macro key (F1 - F9) and if the timestamp is within 15ms of the last macro key event
+                // we check if the key is a macro key (F1 - F10) and if the timestamp is within 15ms of the last macro key event
                 long now = Environment.TickCount;
 
                 // Now we read from the lParam to get the actual key info (which key is it, etc)
@@ -351,7 +351,7 @@ namespace ChatVisual
 
                 // THIS IS AN INSANELY COMPLICATED CONDITION
                 // but in general, it check if the event is injected (not from physical keyboard)
-                // why: because the current logic is: all the event come from macro would be injected (we stop everything from F1 - F9 at low level)
+                // why: because the current logic is: all the event come from macro would be injected (we stop everything from F1 - F10 at low level)
                 // but the RawInput reject them IF THEY FROM THE MACRO
                 // but the way the condition works involve confusing bitwise calculation (because this flag is confusing)
                 // learn more: https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-kbdllhookstruct 
@@ -362,9 +362,9 @@ namespace ChatVisual
                     return CallNextHookEx(_macroHookHandle, nCode, wParam, lParam);
                 }
 
-                // handle F1 - F9 separatedly
+                // handle F1 - F10 separately
 
-                if (kbdStruct.vkCode >= 112 && kbdStruct.vkCode <= 120) // F1-F9 only
+                if (kbdStruct.vkCode >= 112 && kbdStruct.vkCode <= 121) // F1-F10 only
                 {
                     bool isKeyUp = (kbdStruct.flags & 0x80) != 0; // LLKHF_UP
                     HandleMacroFunctionKey(kbdStruct.vkCode, isKeyUp);
