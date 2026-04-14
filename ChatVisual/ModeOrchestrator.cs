@@ -91,8 +91,7 @@ namespace ChatVisual
             // event shout Mode Change.... we would clean the session
             OnModeChange += () =>
             {
-                _openAIWrapper.SessionCleaning();
-                _claudeClient.SessionCleaning();
+                _sharedChatHistory.Clear();
             };
 
         }
@@ -199,6 +198,11 @@ namespace ChatVisual
         }
 
 
+
+        public void ClearHistory()
+        {
+            _sharedChatHistory.Clear();
+        }
 
     }
 }
