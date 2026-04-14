@@ -59,7 +59,12 @@ namespace ChatVisual
             _modeOrchestrator.OnModeChange += () =>
             {
                 Messages.Clear();
+                ModeIndicator.Text = _modeOrchestrator.Mode.ToString();
+
             };
+
+            ModeIndicator.Text = _modeOrchestrator.Mode.ToString();
+
 
             // Confirm if this is 64 bit or 32 bit process, and the size of the RawInputHeader struct
             Console.WriteLine($"IntPtr.Size = {IntPtr.Size}");

@@ -98,8 +98,8 @@
         </Grid.RowDefinitions>
         
         <!--The Screenshot History Section-->
-        <ItemsControl Grid.Row="0" x:Name="ScreenshotHistory">
-            
+        <Grid Grid.Row="0">
+            <ItemsControl x:Name="ScreenshotHistory">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <StackPanel Orientation="Horizontal"></StackPanel>
@@ -108,7 +108,7 @@
 
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Image  Height="40"
+                        <Image Height="40"
                             Margin="4,2,2,2"
                             Source="{Binding Converter={StaticResource Base64ToImageConverter}}" />
                 </DataTemplate>
@@ -116,6 +116,10 @@
             
         </ItemsControl>
         
+            <TextBlock x:Name="ModeIndicator"
+               VerticalAlignment="Top" HorizontalAlignment="Right"
+               Foreground="#888888" FontSize="11" Margin="4"/>
+        </Grid>
         
         <ListBox Grid.Row="1" x:Name="ChatHistory" 
                  ScrollViewer.VerticalScrollBarVisibility="Auto"
