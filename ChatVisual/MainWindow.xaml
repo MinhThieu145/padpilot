@@ -9,6 +9,8 @@
         
         Loaded="Window_Loaded"
         Closed="Window_Closed"
+        Topmost="True"
+        ShowInTaskbar="False"
                 
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="550" 
@@ -90,7 +92,7 @@
     </Window.Resources>
 
 
-    <Grid>
+    <Grid IsHitTestVisible="False">
         <Grid.RowDefinitions>
             <RowDefinition Height="60"></RowDefinition>
             <RowDefinition Height="*"></RowDefinition>
@@ -100,27 +102,25 @@
         <!--The Screenshot History Section-->
         <Grid Grid.Row="0">
             <ItemsControl x:Name="ScreenshotHistory">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <StackPanel Orientation="Horizontal"></StackPanel>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"></StackPanel>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
                         <Image Height="40"
-                            Margin="4,2,2,2"
-                            Source="{Binding Converter={StaticResource Base64ToImageConverter}}" />
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-            
-        </ItemsControl>
-        
+                       Margin="4,2,2,2"
+                       Source="{Binding Converter={StaticResource Base64ToImageConverter}}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
             <TextBlock x:Name="ModeIndicator"
                VerticalAlignment="Top" HorizontalAlignment="Right"
                Foreground="#888888" FontSize="11" Margin="4"/>
         </Grid>
-        
+
         <ListBox Grid.Row="1" x:Name="ChatHistory" 
                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                  ScrollViewer.HorizontalScrollBarVisibility="Hidden"
@@ -155,7 +155,7 @@
                 <ColumnDefinition Width="*"></ColumnDefinition>
             </Grid.ColumnDefinitions>
 
-            <TextBox x:Name="MessageInput" Grid.Column="0" Background="#401a1a1a"   ></TextBox>
+            <TextBox x:Name="MessageInput" Grid.Column="0" Background="#401a1a1a" Visibility="Collapsed" ></TextBox>
             
         </Grid>
         
