@@ -3,3 +3,5 @@ bin/
 obj/
 *.user
 *.suo
+docs/ai-local/
+docs/ai-local/
