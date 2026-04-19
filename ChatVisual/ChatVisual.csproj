@@ -160,10 +160,16 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="AIProvider.cs" />
+    <Compile Include="AIProviderConfig.cs" />
     <Compile Include="AIRequestConfig.cs" />
+    <Compile Include="ApiKeySettings.cs" />
     <Compile Include="ChatMessageRole.cs" />
+    <Compile Include="ChatVisualSettings.cs" />
     <Compile Include="ModeOrchestrator.cs" />
     <Compile Include="ResponseMode.cs" />
+    <Compile Include="ResponseModeSettings.cs" />
+    <Compile Include="ResponseModeSettingsSet.cs" />
     <Compile Include="SharedMessage.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
