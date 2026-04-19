@@ -1,6 +1,6 @@
 # Layer 2 Project State
 
-Last updated: 2026-04-17
+Last updated: 2026-04-19
 
 ## Existing classes and their purpose
 
@@ -10,6 +10,7 @@ Last updated: 2026-04-17
 - `Base64ToImageConverter`: Converts base64 screenshot strings into WPF `BitmapImage` instances for XAML binding.
 - `ChatMessageRole`: Defines the provider-neutral conversation roles supported by shared AI history.
 - `ClaudeClient`: Translates shared conversation history and screenshots into Anthropic messages, applies request config, and retries overload failures.
+- `ConversationMessage`: Provides the UI-bound chat row shape used by `MainWindow` for displayed role/content pairs.
 - `MainWindow`: Owns the WPF window lifecycle, UI-bound message collections, screenshot capture, macro action registration, and calls into `ModeOrchestrator`.
 - `ModeOrchestrator`: Owns the active response mode, shared chat history, provider routing, mode-change clearing, and manual history clearing.
 - `OpenAIWrapper`: Translates shared conversation history and screenshots into OpenAI chat messages, selects the OpenAI model, applies request options, and retries failures.
