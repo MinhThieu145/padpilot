@@ -21,59 +21,10 @@ namespace ChatVisual
         public List<SharedMessage> _sharedChatHistory;
 
 
-        // AI agent parameters presets
-
         /// <summary>
-        /// Parameters for fast, light weight response mode for OpenAI api
+        /// Store the general settings
         /// </summary>
-        private static readonly AIRequestConfig _lightweightResponseOpenAIConfig = new AIRequestConfig()
-        {
-            Model = "gpt-5.4-mini",
-            Temperature = 0.2f,
-            MaxOutputToken = 1024,
-            SystemPrompt = "You are a concise assistant. Answer correctly and briefly. If the question requires code, write it cleanly. If it doesn't, just answer directly. No fluff.."
-        };
-
-        /// <summary>
-        /// Parameters for a a good reasoning response mode for OpenAI api
-        /// </summary>
-        private static readonly AIRequestConfig _reasoningResponseOpenAIConfig = new AIRequestConfig()
-        {
-            Model = "gpt-5.4",
-            Temperature = 0.2f,
-            MaxOutputToken = 2048,
-            SystemPrompt = "You are a Python coding assistant. You will receive screenshots of programming problems or code.\r\n\r\nIf you see a problem statement: briefly explain your approach in 2-4 sentences, then write the solution.\r\n\r\nIf you see someone's code: review it, point out what's wrong or what could be improved, then show the corrected version.\r\n\r\nCode style rules:\r\n- Write Python only\r\n- Prefer simple, readable solutions over clever ones\r\n- Add short, natural comments that explain the why, not the what\r\n- Avoid unnecessary abstractions or advanced features unless the problem genuinely needs them"
-
-        };
-
-
-        /// <summary>
-        /// Parameters for fast, light weight response mode for Claude api
-        /// </summary>
-        private static readonly AIRequestConfig _lightweightResponseClaudeConfig = new AIRequestConfig()
-        {
-            Model = "claude-haiku-4-5",
-            Temperature = 0.2f,
-            MaxOutputToken = 1024,
-            SystemPrompt = "You are a concise assistant. Answer correctly and briefly. If the question requires code, write it cleanly. If it doesn't, just answer directly. No fluff."
-        };
-
-        /// <summary>
-        /// Parameters for a a good reasoning response mode for Claude api
-        /// </summary>
-        private static readonly AIRequestConfig _reasoningResponseClaudeConfig = new AIRequestConfig()
-        {
-            Model = "claude-sonnet-4-6",
-            Temperature = 0.2f,
-            MaxOutputToken = 2048,
-            SystemPrompt = "You are a Python coding assistant. You will receive screenshots of programming problems or code.\r\n\r\nIf you see a problem statement: briefly explain your approach in 2-4 sentences, then write the solution.\r\n\r\nIf you see someone's code: review it, point out what's wrong or what could be improved, then show the corrected version.\r\n\r\nCode style rules:\r\n- Write Python only\r\n- Prefer simple, readable solutions over clever ones\r\n- Add short, natural comments that explain the why, not the what\r\n- Avoid unnecessary abstractions or advanced features unless the problem genuinely needs them"
-
-        };
-
-
-
-
-
+        private ChatVisualSettings _settings;
 
         // constructor
         public ModeOrchestrator()
@@ -93,6 +44,9 @@ namespace ChatVisual
             {
                 _sharedChatHistory.Clear();
             };
+
+
+            _settings = ChatVisualSettings.CreateDefault();  // CreateDefault is a static method that return the default settings (no need the `new` keyword)
 
         }
 
@@ -150,34 +104,15 @@ namespace ChatVisual
             {
                 case ResponseMode.Quick:
                     // we would simply do a quick call
-                    chatResponse = await _openAIWrapper.sendMessage(_sharedChatHistory, _lightweightResponseOpenAIConfig);
+                    chatResponse = await SendWithModeSettingsAsync(_settings.Modes.Quick);
                     break;
 
                 case ResponseMode.Thinking:
-                    // we would do a more complex call, maybe with more context or a different model
-                    try
-                    {
-                        chatResponse = await _claudeClient.sendMessage(_sharedChatHistory, _reasoningResponseClaudeConfig);
-                    } catch
-                    {
-                        // we try again but now with the OpenAI as a backup plan
-                        Console.WriteLine("[ModeOrchestrator] Claude call failed, falling back to OpenAI for Thinking mode.");
-                        chatResponse = await _openAIWrapper.sendMessage(_sharedChatHistory, _reasoningResponseOpenAIConfig);
-                    }
+                    chatResponse = await SendWithModeSettingsAsync(_settings.Modes.Thinking);
                     break;
 
                 case ResponseMode.DeepThinking:
-                    // we would do the most complex call, maybe with even more context or a more powerful model
-                    try
-                    {
-                        chatResponse = await _claudeClient.sendMessage(_sharedChatHistory, _reasoningResponseClaudeConfig);
-                    }
-                    catch
-                    {
-                        // we try again but now with the OpenAI as a backup plan
-                        Console.WriteLine("[ModeOrchestrator] Claude call failed, falling back to OpenAI for Thinking mode.");
-                        chatResponse = await _openAIWrapper.sendMessage(_sharedChatHistory, _reasoningResponseOpenAIConfig);
-                    }
+                    chatResponse = await SendWithModeSettingsAsync(_settings.Modes.DeepThinking);
                     break;
 
                 default:
@@ -198,11 +133,76 @@ namespace ChatVisual
         }
 
 
+        // =====================================================================
+        // UTILITIES and HELPERS
+        // =====================================================================
 
         public void ClearHistory()
         {
             _sharedChatHistory.Clear();
         }
 
+        /// <summary>
+        /// helper method to build the new AIRequestConfig based on the ResponseModeSettings (inside _settings) and AIProviderConfig (also inside _settings)
+        /// </summary>
+        private AIRequestConfig BuildRequestConfig(ResponseModeSettings responseModeSettings, AIProviderConfig aIProviderConfig)
+        {
+            AIRequestConfig newRequestConfig = new AIRequestConfig()
+            {
+                Model = aIProviderConfig.Model,
+                SystemPrompt = responseModeSettings.SystemPrompt,
+                Temperature = aIProviderConfig.Temperature,
+                MaxOutputToken = aIProviderConfig.MaxOutputTokens,
+            };
+
+            return newRequestConfig;
+        }
+
+        /// <summary>
+        /// helper method to send message to the AI client with the right provider
+        /// </summary>
+        /// <param name="aIProviderConfig"></param>
+        /// <param name="aIRequestConfig"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        private async Task<string> SendWithProviderAsync(AIProviderConfig aIProviderConfig, AIRequestConfig aIRequestConfig)
+        {
+            switch (aIProviderConfig.Provider)
+            {
+                case AIProvider.OpenAI:
+                    return await _openAIWrapper.sendMessage(_sharedChatHistory, aIRequestConfig);
+                case AIProvider.Anthropic:
+                    return await _claudeClient.sendMessage(_sharedChatHistory, aIRequestConfig);
+            }
+
+            // we don't have this AI Provider (so if Gemini split in here somehow then we throw error)
+            throw new InvalidOperationException("Unknown AI provider");
+        }
+
+
+        private async Task<string> SendWithModeSettingsAsync(ResponseModeSettings modeSettings)
+        {
+            try
+            {
+                AIRequestConfig requestConfig = BuildRequestConfig(modeSettings, modeSettings.Primary);
+                return await SendWithProviderAsync(modeSettings.Primary, requestConfig);
+            } catch
+            {
+                // if we have fallback we would fallback
+                if (modeSettings.Fallback == null)
+                {
+                    throw;
+                }
+                else
+                {
+                    AIRequestConfig requestConfig = BuildRequestConfig(modeSettings, modeSettings.Fallback);
+                    return await SendWithProviderAsync(modeSettings.Fallback, requestConfig);
+
+                }
+            }
+        }
+
+
     }
+
 }
