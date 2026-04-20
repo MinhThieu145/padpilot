@@ -8,6 +8,7 @@ Read these files first for project context:
 
 - `docs/project-context/layer1-project.md` — what this project is (product, users, scope)
 - `docs/project-context/layer2-state.md` — current state of the code (existing classes, architecture decisions, conventions)
+- `docs/project-context/project-conventions.md` — toolchain quirks, local conventions, and corrections from past sessions
 
 These are the minimum context needed to produce proposals that fit this project.
 
@@ -20,6 +21,8 @@ If a decision in that file seems wrong given new information, raise it with me e
 ## Code conventions
 
 Code conventions are listed in the "Code conventions in use" section of `layer2-state.md`. Follow them when writing new code.
+
+Additional toolchain quirks and local conventions live in `project-conventions.md`. If something in that file contradicts your default assumption about how a tool behaves, trust the file — it reflects what has actually been observed in this project.
 
 ## Scope discipline
 
